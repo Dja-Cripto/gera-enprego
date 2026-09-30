@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#112926" />
+    <meta name="color-scheme" content="light" />
+    <title>Radar · Vagas e carreira</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href="theme.css" />
+  </head>
+  <body>
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+  <symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M11 4H4v16h16v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></symbol>
+  <symbol id="i-radar" viewBox="0 0 24 24"><path d="M19.1 4.9A10 10 0 1 0 22 12"/><path d="M16.2 7.8A6 6 0 1 0 18 12"/><circle cx="12" cy="12" r="2"/><path d="m13.4 10.6 6-6"/></symbol>
+  <symbol id="i-graduation" viewBox="0 0 24 24"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></symbol>
+  <symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.5 13 17 22l-5-3-5 3 1.5-9"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></symbol>
+  <symbol id="i-linkedin" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M8 11v6M8 7.5v.01M12 17v-6M12 13.5a2.5 2.5 0 0 1 5 0V17"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 2 10 5-10 5L2 7Z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+</svg>
+    <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <a class="brand" href="#" data-view="overview" aria-label="Radar, início"><span class="brand-mark"><svg class="i" aria-hidden="true"><use href="#i-radar"/></svg></span><span class="brand-name">Radar</span></a>
+      <nav class="tabs" aria-label="Seções">
+        <p class="sidebar-label">Espaço de trabalho</p>
+        <button class="nav-item active" data-view="overview"><svg class="i" aria-hidden="true"><use href="#i-home"/></svg><span class="long">Visão geral</span><span class="short">Início</span></button>
+        <button class="nav-item" data-view="jobs"><svg class="i" aria-hidden="true"><use href="#i-briefcase"/></svg><span>Vagas</span><span class="nav-count" id="nav-jobs">0</span></button>
+        <button class="nav-item" data-view="content"><svg class="i" aria-hidden="true"><use href="#i-pen"/></svg><span class="long">Publicações</span><span class="short">Posts</span><span class="nav-count" id="nav-content">0</span></button>
+        <button class="nav-item" data-view="leads"><svg class="i" aria-hidden="true"><use href="#i-target"/></svg><span>Clientes</span><span class="nav-count" id="nav-leads">0</span></button>
+        <button class="nav-item" data-view="history"><svg class="i" aria-hidden="true"><use href="#i-history"/></svg><span class="long">Histórico</span><span class="short">Histórico</span></button>
+        <button class="nav-item" data-view="profile"><svg class="i" aria-hidden="true"><use href="#i-file"/></svg><span class="long">Meu currículo</span><span class="short">Currículo</span></button>
+        <button class="nav-item mobile-only" data-view="settings"><svg class="i" aria-hidden="true"><use href="#i-user"/></svg><span class="short">Perfil</span></button>
+      </nav>
+      <div class="robot" id="robot-card" title="Estado da busca automática"><span class="robot-dot" id="robot-dot"></span><span><strong>Robô de vagas</strong><small id="robot-status">Verificando…</small></span></div>
+      <button class="profile-chip" data-view="settings" title="Meu perfil e configurações">
+        <span class="avatar" id="sidebar-avatar">DA</span>
+        <span class="profile-chip-text"><strong id="sidebar-name">Daniel Alves</strong><small>Perfil e configurações</small></span>
+        <svg class="i chip-icon" aria-hidden="true"><use href="#i-settings"/></svg>
+      </button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar"><a class="mobile-brand" href="#" data-view="overview"><span class="brand-mark"><svg class="i" aria-hidden="true"><use href="#i-radar"/></svg></span>Radar</a><span class="date-label" id="today-label"></span></header>
+        <section id="overview" class="view active" aria-labelledby="overview-title">
+          <div class="home">
+            <div class="home-main">
+              <div class="hero">
+                <p class="hero-kicker">Radar do dia <span class="hero-line"></span> <span id="hero-date"></span></p>
+                <h1 id="overview-title">Oportunidades na mesa<span class="dot">.</span></h1>
+                <p class="hero-sub"><span id="greeting">Bom dia</span>, <span id="greeting-name">Daniel</span>. <span id="home-lead">Escolha onde vale colocar sua energia hoje.</span></p>
+              </div>
+              <div class="modules" id="modules"></div>
+              <div class="section-heading"><h2>Vagas recomendadas</h2><button class="link" data-view="jobs">Ver todas as vagas <span id="pending-count"></span></button></div>
+              <div id="overview-list" class="rec-list"></div>
+              <div class="home-two">
+                <div><div class="section-heading"><h2>Publicações para revisar</h2><button class="link" data-view="content">Ver todas</button></div><div id="overview-content" class="rec-list"></div></div>
+                <div><div class="section-heading"><h2>Clientes para avaliar</h2><button class="link" data-view="leads">Ver todos</button></div><div id="overview-leads" class="rec-list"></div></div>
+              </div>
+            </div>
+            <aside class="home-side">
+              <div class="side-card">
+                <h3>Busca automática</h3>
+                <dl class="rows" id="summary-grid"></dl>
+                <p class="muted small" id="last-run-home"></p>
+                <button class="button button-secondary button-block" data-view="jobs">Abrir vagas</button>
+              </div>
+              <div class="side-card">
+                <h3>Seu currículo</h3>
+                <p class="muted" id="profile-summary">O Radar compara cada vaga com as informações do seu currículo.</p>
+                <button class="link" data-view="profile">Revisar currículo</button>
+              </div>
+              </aside>
+          </div>
+        </section>
+
+        <section id="jobs" class="view" aria-labelledby="jobs-title">
+          <div class="jobs-head">
+            <div>
+              <h1 id="jobs-title">Vagas</h1>
+              <p class="summary-line" id="job-summary">Nenhuma busca feita ainda.</p>
+            </div>
+            <div class="search-actions">
+              <label class="period-field"><span>Publicadas</span><select id="search-period" aria-label="Período da busca"><option value="1">nas últimas 24 horas</option><option value="3">nos últimos 3 dias</option><option value="7">nos últimos 7 dias</option><option value="14">nos últimos 14 dias</option><option value="30">nos últimos 30 dias</option><option value="0">em qualquer data (ainda abertas)</option></select></label>
+              <button class="button button-secondary" id="toggle-manual" type="button" aria-expanded="false" aria-controls="manual-panel">+ Adicionar por link</button>
+              <button class="button" id="search-jobs" type="button"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span>Buscar vagas agora</span></button>
+            </div>
+          </div>
+          <div class="filters" role="search">
+            <label class="search-field"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="job-query" type="search" placeholder="Cargo, empresa ou cidade" aria-label="Filtrar vagas"></label>
+            <select id="fit-select" aria-label="Correspondência"><option value="all">Todas as correspondências</option><option value="boa">Boa correspondência</option><option value="possivel">Possível correspondência</option></select>
+            <select id="mode-filter" aria-label="Modalidade"><option value="all">Qualquer modalidade</option><option value="Remoto">Remoto</option><option value="Híbrido">Híbrido</option><option value="Presencial">Presencial</option></select>
+            <select id="source-filter" aria-label="Fonte"><option value="all">Todas as fontes</option></select>
+            <select id="job-filter" aria-label="Situação"><option value="pending">Para analisar</option><option value="saved">Salvas para depois</option><option value="applied">Já me candidatei</option><option value="rejected">Sem interesse</option><option value="all">Todas</option></select>
+            <div id="fit-filter" hidden></div>
+          </div>
+          <form id="manual-panel" class="manual-panel" hidden>
+            <div><strong>Adicionar uma vaga que você encontrou</strong><p class="muted small">Serve para qualquer site, inclusive LinkedIn. O Radar compara a vaga com o seu currículo e guarda no histórico quando você se candidatar. No LinkedIn, Indeed e Glassdoor, informe também o cargo e a empresa.</p></div>
+            <div class="manual-grid"><label class="full">Link da vaga<input name="url" type="url" required placeholder="https://..."></label><label>Cargo<input name="title" placeholder="Opcional em sites que o robô consegue ler"></label><label>Empresa<input name="company"></label><label>Cidade<input name="city" placeholder="Ex.: Feira de Santana"></label><label class="check"><input type="checkbox" name="remote"> Vaga remota</label></div>
+            <label class="full">Descrição ou requisitos (opcional)<textarea name="description" rows="3" placeholder="Cole aqui os requisitos para uma comparação melhor com o seu currículo"></textarea></label>
+            <div class="form-actions"><button class="button" type="submit">Adicionar à lista</button><button class="button button-ghost" type="button" id="close-manual">Cancelar</button><span class="muted small" id="manual-status"></span></div>
+          </form>
+          <p id="job-search-status" class="notice" role="status" aria-live="polite" hidden></p>
+          <div class="split">
+            <div class="list-col">
+              <p class="list-count" id="jobs-count"></p>
+              <div id="jobs-list" class="job-list"></div>
+            </div>
+            <article class="detail-col" id="job-detail" aria-live="polite"></article>
+          </div>
+
+          <div class="diagnostics" id="diagnostics">
+            <h2>Diagnóstico da busca</h2>
+            <p class="muted">De onde vieram as vagas e se o robô está deixando alguma passar.</p>
+            <div id="job-kpis" class="diag-numbers"></div>
+            <details class="disclosure"><summary>Fontes consultadas na última busca <svg class="i chev" aria-hidden="true"><use href="#i-chevron"/></svg></summary><div class="disclosure-body"><div id="job-source-stats"></div><p class="muted small">LinkedIn, Indeed e Glassdoor não entram na coleta automática, porque os termos de uso desses sites proíbem. Muitas das mesmas vagas aparecem também na Gupy, na Sólides ou no site da empresa.</p></div></details>
+            <details class="disclosure"><summary>Prova de cobertura: o robô achou as vagas que você achou? <svg class="i chev" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+              <div class="disclosure-body">
+                <ol class="steps"><li>Pesquise vagas como você já faz (LinkedIn, Indeed, Gupy…).</li><li>Copie o link de cada vaga que te interessou e cole abaixo, uma por linha.</li><li>Clique em Comparar. O Radar diz se já tinha a vaga, se descartou (e por quê) ou se não encontrou.</li></ol>
+                <form id="coverage-form"><textarea name="coverage" rows="5" aria-label="Vagas encontradas manualmente" placeholder="Analista de Suporte Jr — Empresa X  https://www.linkedin.com/jobs/view/123"></textarea><button class="button button-secondary" type="submit">Comparar com a última busca</button></form>
+                <div id="coverage-result" class="coverage-result" role="status" aria-live="polite"></div>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <section id="content" class="view" aria-labelledby="content-title">
+          <div class="jobs-head">
+            <div><h1 id="content-title">Publicações</h1><p class="summary-line">O robô escreve seus posts do LinkedIn a partir do que você fez de verdade. Você aprova em poucos minutos por semana e recebe cada post na hora de publicar.</p></div>
+            <div class="search-actions">
+              <button class="button button-secondary" id="open-checkin" type="button">Check-in da semana</button>
+              <button class="button" id="plan-posts" type="button"><svg class="i" aria-hidden="true"><use href="#i-pen"/></svg><span>Gerar posts da semana</span></button>
+            </div>
+          </div>
+          <div id="posts-app"></div>
+        </section>
+
+        <section id="leads" class="view" aria-labelledby="leads-title">
+          <div class="jobs-head">
+            <div><h1 id="leads-title">Clientes</h1><p class="summary-line">Empresas que podem comprar a sua automação, com o motivo da indicação e a primeira mensagem pronta para você revisar e enviar.</p></div>
+            <div class="search-actions">
+              <label class="period-field"><span>Campanha</span><select id="campaign-select" aria-label="Campanha"></select></label>
+              <button class="button button-ghost" id="edit-campaign" type="button" hidden>Editar</button>
+              <button class="button button-secondary" id="new-campaign" type="button">+ Nova campanha</button>
+              <button class="button" id="search-leads" type="button" hidden><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg><span>Buscar empresas</span></button>
+            </div>
+          </div>
+          <div id="leads-app"></div>
+        </section>
+
+        <section id="history" class="view" aria-labelledby="history-title">
+          <div class="page-head"><div><h1 id="history-title">Minhas decisões</h1><p class="heading-subtitle">Vagas em que você se candidatou ou que descartou, e publicações e clientes que você aprovou, ajustou ou recusou.</p></div></div>
+          <div id="history-list" class="job-list job-list-wide"></div>
+        </section>
+
+        <section id="profile" class="view" aria-labelledby="profile-title">
+          <div class="page-head"><div><h1 id="profile-title">Meu currículo</h1><p class="heading-subtitle">Estas informações são a base de tudo: o Radar compara cada vaga com o que está aqui.</p></div></div>
+          <div class="profile-layout">
+            <div class="settings-stack">
+              <section class="workspace-panel" aria-labelledby="base-title">
+                <div class="panel-heading"><div><h2 id="base-title">Informações pessoais e resumo</h2><p>Dados de contato e sua apresentação profissional.</p></div></div>
+                <form id="profile-form" class="form-grid">
+                  <label>Nome completo<input name="name" autocomplete="name" required></label>
+                  <label>Cidade e estado<input name="city" autocomplete="address-level2"></label>
+                  <label>Telefone<input name="phone" autocomplete="tel" type="tel"></label>
+                  <label>E-mail<input name="email" autocomplete="email" type="email"></label>
+                  <label class="full">Portfólio ou site<input name="portfolio" type="url" placeholder="https://..."><a id="portfolio-open" class="text-button" target="_blank" rel="noopener noreferrer">Abrir portfólio ↗</a></label>
+                  <label>CNH<input name="license" placeholder="Ex.: categorias A/B"></label>
+                  <label class="full">Resumo profissional<textarea name="summary" rows="5"></textarea></label>
+                  <label class="full">Tecnologia, dados e BI<textarea name="skillsTech" rows="3" placeholder="Ferramentas e conhecimentos comprovados"></textarea></label>
+                  <label class="full">IA, automação e outras habilidades<textarea name="skillsOther" rows="3"></textarea></label>
+                  <div class="form-actions full"><button class="button" type="submit">Salvar perfil</button><span id="profile-saved" class="save-note"></span></div>
+                </form>
+              </section>
+              <section class="workspace-panel" aria-labelledby="academic-title"><div class="panel-heading"><div><h2 id="academic-title">Formação acadêmica</h2><p>Faculdade, ensino médio e outras formações escolares.</p></div></div><div id="academic-list" class="profile-list"></div><form id="academic-form" class="form-grid compact-form"><input type="hidden" name="entryId"><label class="full">Formação<input name="title" required placeholder="Ex.: Ensino médio completo"></label><label class="full">Situação e detalhes<input name="detail" placeholder="Ex.: em andamento"></label><div class="form-actions full"><button class="button" type="submit">Salvar formação</button><button class="button button-plain" type="reset">Limpar</button></div></form></section>
+              <section class="workspace-panel" aria-labelledby="technical-title"><div class="panel-heading"><div><h2 id="technical-title">Curso técnico</h2><p>Separado dos cursos livres e certificações.</p></div></div><div id="technical-list" class="profile-list"></div><form id="technical-form" class="form-grid compact-form"><input type="hidden" name="entryId"><label>Curso técnico<input name="title" required placeholder="Ex.: Assistente Administrativo"></label><label>Instituição e carga horária<input name="detail" placeholder="Ex.: SENAI — 532 horas"></label><div class="form-actions full"><button class="button" type="submit">Salvar curso técnico</button><button class="button button-plain" type="reset">Limpar</button></div></form></section>
+              <section class="workspace-panel" aria-labelledby="experience-title"><div class="panel-heading"><div><h2 id="experience-title">Experiência</h2><p>Adicione ou corrija atividades profissionais.</p></div></div><div id="experience-list" class="profile-list"></div><form id="experience-form" class="form-grid compact-form"><input type="hidden" name="entryId"><label>Função<input name="title" required placeholder="Ex.: Analista de suporte"></label><label>Empresa<input name="company" required></label><label>Período<input name="period" placeholder="Ex.: 2024–2025"></label><label class="full">O que você fez<textarea name="description" rows="2"></textarea></label><div class="form-actions full"><button class="button" type="submit">Salvar experiência</button><button class="button button-plain" type="reset">Limpar</button></div></form></section>
+              <section class="workspace-panel" aria-labelledby="courses-title"><div class="panel-heading"><div><h2 id="courses-title">Cursos e qualificações <span id="course-count" class="panel-count"></span></h2><p>Cursos livres, formações profissionais e certificações.</p></div></div><div id="course-list" class="profile-list"></div><form id="course-form" class="form-grid compact-form"><input type="hidden" name="entryId"><label>Curso ou qualificação<input name="title" required placeholder="Nome do curso"></label><label>Instituição, carga ou ano<input name="detail" placeholder="Ex.: 72 horas"></label><label class="full">Área<select name="category"><option value="Tecnologia, dados e BI">Tecnologia, dados e BI</option><option value="IA e automação">IA e automação</option><option value="Administrativo e outros">Administrativo e outros</option></select></label><div class="form-actions full"><button class="button" type="submit">Salvar curso</button><button class="button button-plain" type="reset">Limpar</button></div></form></section>
+              <section class="workspace-panel" aria-labelledby="projects-title"><div class="panel-heading"><div><h2 id="projects-title">Projetos e portfólio</h2><p>Registre o que você construiu e como funciona.</p></div></div><div id="project-list" class="profile-list"></div><form id="project-form" class="form-grid compact-form"><input type="hidden" name="entryId"><label class="full">Projeto<input name="title" required placeholder="Nome do projeto"></label><label class="full">Descrição<textarea name="description" rows="3" placeholder="O que o projeto faz e qual foi sua participação"></textarea></label><label class="full">Link do projeto<input name="url" type="url" placeholder="https://..."></label><div class="form-actions full"><button class="button" type="submit">Salvar projeto</button><button class="button button-plain" type="reset">Limpar</button></div></form></section>
+              <section class="workspace-panel" aria-labelledby="languages-title"><div class="panel-heading"><div><h2 id="languages-title">Idiomas</h2><p>Inclua o nível e qualquer observação relevante.</p></div></div><div id="language-list" class="profile-list"></div><form id="language-form" class="form-grid compact-form"><input type="hidden" name="entryId"><label>Idioma<input name="title" required placeholder="Ex.: Inglês"></label><label>Nível e observações<input name="detail" placeholder="Ex.: intermediário, leitura técnica"></label><div class="form-actions full"><button class="button" type="submit">Salvar idioma</button><button class="button button-plain" type="reset">Limpar</button></div></form></section>
+            </div>
+            <aside class="settings-stack">
+              <section class="workspace-panel document-panel" aria-labelledby="resume-title"><div class="panel-heading"><div><h2 id="resume-title">Currículo enviado</h2><p>Abra o PDF original ou envie uma versão nova.</p></div></div><div id="resume-current" class="document-state"></div><form id="resume-form"><label class="upload-zone" for="resume-file"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg><strong>Escolher currículo em PDF</strong><small>Arquivo salvo apenas neste navegador, nesta versão.</small></label><input id="resume-file" name="resume" type="file" accept="application/pdf,.pdf" required><div class="radio-stack"><label><input type="radio" name="uploadMode" value="review" checked> Comparar e sugerir atualizações</label><label><input type="radio" name="uploadMode" value="replace"> Preparar substituição do perfil</label></div><label class="upload-notes">O que mudou?<textarea name="updateNotes" rows="3" placeholder="Ex.: adicionei um novo emprego e um curso de SQL"></textarea></label><button class="button" type="submit">Guardar para análise</button></form><p class="helper">O arquivo será guardado. A leitura automática e a atualização dos campos ainda não estão conectadas; nada será substituído sem sua revisão.</p></section>
+              <section class="workspace-panel" aria-labelledby="profile-next-title"><div class="panel-heading"><div><h2 id="profile-next-title">Como isso será usado</h2></div></div><p class="helper">O perfil mestre reúne seus fatos. Quando uma vaga real chegar, o sistema destacará somente as experiências e competências relevantes e mostrará o currículo para sua aprovação.</p></section>
+              <section class="workspace-panel" aria-labelledby="assistant-request-title"><div class="panel-heading"><div><h2 id="assistant-request-title">Pedir uma atualização</h2><p>Descreva o que mudou no seu currículo.</p></div></div><form id="assistant-request-form"><label class="upload-notes">Sua instrução<textarea name="request" rows="4" required placeholder="Ex.: concluí um curso de SQL; adicione ao meu perfil e revise meu resumo"></textarea></label><button class="button" type="submit">Registrar pedido</button></form><div id="assistant-requests" class="request-list"></div><p class="helper">O pedido fica pendente no protótipo. A conversa com IA será conectada depois.</p></section>
+            </aside>
+          </div>
+        </section>
+
+        
+        <section id="settings" class="view" aria-labelledby="settings-title">
+          <div class="page-head"><div><h1 id="settings-title">Meu perfil</h1><p class="heading-subtitle">Seus dados, o que o Radar deve procurar e como o painel funciona para você.</p></div></div>
+          <div class="profile-card" id="profile-card">
+            <span class="avatar avatar-lg" id="profile-card-avatar">DA</span>
+            <div class="profile-card-main"><h2 id="profile-card-name">Daniel</h2><p id="profile-card-line" class="muted"></p><p id="profile-card-contact" class="profile-card-contact"></p></div>
+            <div class="profile-card-actions"><button class="button button-secondary" data-view="profile">Editar dados e currículo</button></div>
+          </div>
+          <section class="workspace-panel extra-sources" aria-labelledby="extra-sources-title">
+            <div class="panel-heading"><div><h2 id="extra-sources-title">Fontes extras de vagas</h2><p>Serviços que ampliam a busca. Cada um precisa de uma chave de acesso gratuita ou de baixo custo. As chaves ficam guardadas só no seu computador, no servidor do Radar.</p></div></div>
+            <form id="integrations-form" class="source-keys" autocomplete="off">
+              <div class="source-key">
+                <div class="source-key-head"><strong>Google Vagas</strong><span class="state" id="int-serpapi">Não configurado</span></div>
+                <p class="muted small">Reúne vagas do LinkedIn, Indeed, Glassdoor, InfoJobs, Catho e sites de empresas. Crie uma conta grátis em <a href="https://serpapi.com/users/sign_up" target="_blank" rel="noopener noreferrer">serpapi.com</a> (250 buscas por mês no plano grátis) e cole a chave "API Key" do seu painel.</p>
+                <div class="form-grid"><label>Chave do SerpApi<input name="serpapiKey" type="password" placeholder="Cole aqui a API Key"></label><label>Buscas por execução<select name="serpapiBudget"><option value="2">2 (economiza a cota)</option><option value="4">4 (recomendado no plano grátis)</option><option value="6">6</option><option value="8">8</option><option value="12">12</option></select></label></div>
+                <button type="button" class="link" data-remove-key="serpapiKey">Remover chave</button>
+              </div>
+              <div class="source-key">
+                <div class="source-key-head"><strong>Adzuna</strong><span class="state" id="int-adzuna">Não configurado</span></div>
+                <p class="muted small">Agregador internacional com site no Brasil. Cadastro grátis em <a href="https://developer.adzuna.com/signup" target="_blank" rel="noopener noreferrer">developer.adzuna.com</a>.</p>
+                <div class="form-grid"><label>App ID<input name="adzunaId" type="password"></label><label>App Key<input name="adzunaKey" type="password"></label></div>
+                <button type="button" class="link" data-remove-key="adzuna">Remover chave</button>
+              </div>
+              <div class="source-key">
+                <div class="source-key-head"><strong>Jooble</strong><span class="state" id="int-jooble">Não configurado</span></div>
+                <p class="muted small">Agregador de vagas com versão brasileira. Peça a chave grátis em <a href="https://jooble.org/api/about" target="_blank" rel="noopener noreferrer">jooble.org/api</a>.</p>
+                <div class="form-grid"><label class="full">Chave do Jooble<input name="joobleKey" type="password"></label></div>
+                <button type="button" class="link" data-remove-key="joobleKey">Remover chave</button>
+              </div>
+              <div class="form-actions"><button class="button" type="submit">Salvar chaves</button><span class="save-note" id="integrations-saved"></span></div>
+            </form>
+          </section>
+          <section class="workspace-panel extra-sources" aria-labelledby="email-panel-title">
+            <div class="panel-heading"><div><h2 id="email-panel-title">E-mail para prospecção</h2><p>Para enviar a primeira mensagem aos clientes direto do Radar, pelo seu Gmail. Cada e-mail só sai quando você clica em Enviar.</p></div></div>
+            <form id="email-form" class="source-keys" autocomplete="off">
+              <div class="source-key">
+                <div class="source-key-head"><strong>Gmail</strong><span class="state" id="int-email">Não configurado</span></div>
+                <ol class="steps small"><li>Na sua Conta Google, ative a <a href="https://myaccount.google.com/signinoptions/twosv" target="_blank" rel="noopener noreferrer">verificação em duas etapas</a>.</li><li>Crie uma <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">senha de app</a> com o nome "Radar". O Google mostra 16 letras.</li><li>Cole abaixo. Não use a sua senha normal: a senha de app pode ser apagada a qualquer momento sem afetar a sua conta.</li></ol>
+                <div class="form-grid">
+                  <label>Seu Gmail<input name="gmailUser" type="email" placeholder="voce@gmail.com"></label>
+                  <label>Senha de app<input name="gmailPass" type="password" autocomplete="new-password"></label>
+                  <label>Limite por dia<select name="dailyLimit"><option value="10">10 e-mails</option><option value="20">20 e-mails (recomendado)</option><option value="30">30 e-mails</option><option value="50">50 e-mails</option></select></label>
+                </div>
+                <button type="button" class="link" data-lead-action="remove-gmail">Remover senha de app</button>
+              </div>
+              <div class="source-key">
+                <div class="source-key-head"><strong>Assinatura das mensagens</strong></div>
+                <p class="muted small">Aparece no fim dos e-mails e no começo das mensagens de WhatsApp. Se ficar em branco, o Radar usa os dados do seu currículo.</p>
+                <div class="form-grid"><label>Nome<input name="senderName" placeholder="Daniel Alves"></label><label>Como você se apresenta<input name="senderTitle" placeholder="Automação de processos para empresas"></label><label>WhatsApp<input name="senderPhone" type="tel"></label><label>Site ou portfólio<input name="senderSite" type="url" placeholder="https://..."></label></div>
+              </div>
+              <div class="form-actions"><button class="button" type="submit">Salvar e-mail</button><span class="save-note" id="email-saved"></span><span class="muted small" id="email-sent-today"></span></div>
+              <p class="muted small">Boas práticas: envie só para e-mails de empresas, poucos por dia e com mensagens personalizadas. Todo e-mail sai com a opção de pedir para não receber mais; quem pedir fica bloqueado no Radar.</p>
+            </form>
+          </section>
+          <section class="workspace-panel extra-sources" aria-labelledby="ai-panel-title">
+            <div class="panel-heading"><div><h2 id="ai-panel-title">Inteligência artificial e imagens</h2><p>A IA escreve os posts e o banco de histórias. As chaves ficam só no servidor do Radar, no seu computador.</p></div></div>
+            <form id="ai-form" class="source-keys" autocomplete="off">
+              <div class="source-key">
+                <div class="source-key-head"><strong>IA de texto (OpenCode Go)</strong><span class="state" id="int-ai">Não configurado</span></div>
+                <p class="muted small">Crie a chave em <a href="https://opencode.ai/auth" target="_blank" rel="noopener noreferrer">opencode.ai</a> (plano Go). Também funciona com qualquer serviço compatível com a OpenAI: é só trocar o endereço.</p>
+                <div class="form-grid">
+                  <label class="full">Chave da IA<input name="aiKey" type="password" autocomplete="new-password"></label>
+                  <label>Modelo para escrever os posts<input name="aiModel" list="ai-model-list" placeholder="kimi-k3"></label>
+                  <label>Modelo para tarefas rápidas<input name="aiFastModel" list="ai-model-list" placeholder="deepseek-v4.1-flash"></label>
+                  <label class="full">Endereço da API<input name="aiBaseUrl" placeholder="https://opencode.ai/zen/go/v1"></label>
+                </div>
+                <datalist id="ai-model-list"></datalist>
+                <div class="row-actions"><button type="button" class="button button-secondary" data-ai-action="test">Testar conexão</button><button type="button" class="button button-ghost" data-ai-action="models">Ver modelos da minha conta</button><button type="button" class="link" data-ai-action="remove-ai">Remover chave</button></div>
+                <p class="notice" id="ai-test-result" hidden></p>
+                <details class="disclosure"><summary>Comparar modelos com um post seu <svg class="i chev" aria-hidden="true"><use href="#i-chevron"/></svg></summary><div class="disclosure-body">
+                  <p class="muted small">O Radar escreve o mesmo post com cada modelo marcado. Você lê e escolhe o que soa mais como você. Precisa do banco de histórias montado.</p>
+                  <div class="chips"><label class="chip"><input type="checkbox" name="compareModel" value="kimi-k3" checked> kimi-k3</label><label class="chip"><input type="checkbox" name="compareModel" value="deepseek-v4.1-flash" checked> deepseek-v4.1-flash</label><label class="chip"><input type="checkbox" name="compareModel" value="glm-5.3" checked> glm-5.3</label><label class="chip"><input type="checkbox" name="compareModel" value="deepseek-v4-pro"> deepseek-v4-pro</label><label class="chip"><input type="checkbox" name="compareModel" value="qwen3.8-max"> qwen3.8-max</label><label class="chip"><input type="checkbox" name="compareModel" value="minimax-m3"> minimax-m3</label></div>
+                  <div class="row-actions"><button type="button" class="button button-secondary" data-ai-action="compare">Comparar</button></div>
+                  <div id="ai-compare"></div>
+                </div></details>
+              </div>
+              <div class="source-key">
+                <div class="source-key-head"><strong>Fotos reais (Pixabay ou Pexels)</strong><span class="state" id="int-pexels">Não configurado</span></div>
+                <p class="muted small">Bancos gratuitos de fotos profissionais, liberadas para uso. Serve a chave do <a href="https://pixabay.com/api/docs/" target="_blank" rel="noopener noreferrer">Pixabay</a> ou do <a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer">Pexels</a>; o Radar reconhece qual é pelo formato. Cards com texto são gerados pelo próprio Radar e não precisam de chave.</p>
+                <div class="form-grid"><label class="full">Chave do banco de fotos<input name="pexelsKey" type="password" autocomplete="new-password"></label></div>
+                <button type="button" class="link" data-ai-action="remove-pexels">Remover chave</button>
+              </div>
+              <div class="form-actions"><button class="button" type="submit">Salvar</button><span class="save-note" id="ai-saved"></span></div>
+            </form>
+          </section>
+          <section class="workspace-panel" aria-labelledby="voice-panel-title">
+            <div class="panel-heading"><div><h2 id="voice-panel-title">Voz e publicações</h2><p>A personalidade dos seus posts e o piloto automático.</p></div></div>
+            <form id="voice-form" class="voice-form">
+              <div class="form-grid">
+                <label>Objetivo<select name="goal"><option value="emprego">Conseguir emprego</option><option value="clientes">Conseguir clientes</option><option value="ambos">Os dois</option></select></label>
+                <label>Idioma<select name="language"><option value="pt">Português</option><option value="en">Inglês (vagas no exterior)</option><option value="alternar">Alternar português e inglês</option></select></label>
+                <label class="full">Para quem você escreve<input name="audience" placeholder="Ex.: recrutadores de dados; donos de escritórios de contabilidade"></label>
+                <label>Tom<select name="tone"><option value="proximo">Próximo e simples</option><option value="formal">Profissional e sóbrio</option><option value="inspirador">Motivador, sem exagero</option></select></label>
+                <label>Linguagem<select name="depth"><option value="simples">Sem jargão</option><option value="tecnico">Pode ser técnica</option></select></label>
+                <label>Tamanho<select name="postLength"><option value="curto">Curto</option><option value="medio">Médio</option><option value="longo">Longo</option></select></label>
+                <label>Emojis<select name="emojis"><option value="nenhum">Nenhum</option><option value="poucos">No máximo 1</option><option value="alguns">Até 3</option></select></label>
+                <label>Hashtags por post<select name="hashtags"><option value="0">Nenhuma</option><option value="3">3</option><option value="5">5</option></select></label>
+                <label>Posts por semana<select name="postsPerWeek"><option value="2">2</option><option value="3">3 (recomendado)</option><option value="4">4</option><option value="5">5</option></select></label>
+                <fieldset class="full day-picks"><legend>Dias</legend><label><input type="checkbox" name="days" value="0"> Dom</label><label><input type="checkbox" name="days" value="1"> Seg</label><label><input type="checkbox" name="days" value="2"> Ter</label><label><input type="checkbox" name="days" value="3"> Qua</label><label><input type="checkbox" name="days" value="4"> Qui</label><label><input type="checkbox" name="days" value="5"> Sex</label><label><input type="checkbox" name="days" value="6"> Sáb</label></fieldset>
+                <label>Horário<input name="time" type="time" value="08:30"></label>
+                <label>Chamada ("estou buscando…")<select name="callEvery"><option value="0">Nunca</option><option value="1">Toda semana</option><option value="2">A cada 2 semanas</option><option value="4">Uma vez por mês</option></select></label>
+                <fieldset class="full day-picks"><legend>Tipos de post</legend><label><input type="checkbox" name="pillars" value="prova"> Prova e projeto</label><label><input type="checkbox" name="pillars" value="dica"> Dica prática</label><label><input type="checkbox" name="pillars" value="historia"> História e aprendizado</label><label><input type="checkbox" name="pillars" value="opiniao"> Opinião sobre o mercado</label></fieldset>
+                <label class="full">O que dizer nas chamadas<input name="cta" placeholder="Ex.: estou aberto a vagas de suporte e dados; ajudo empresas a automatizar planilhas"></label>
+                <label class="full">Nunca falar de<input name="avoid" placeholder="Ex.: política, ex-empregadores pelo nome"></label>
+                <label class="full">Posts que você gosta (cole 2 ou 3, seus ou de outras pessoas)<textarea name="examples" rows="4" placeholder="A IA imita o jeito de escrever, não o conteúdo."></textarea></label>
+              </div>
+              <div class="auto-opts">
+                <label class="toggle"><input type="checkbox" name="autoPlan"><span><strong>Piloto automático</strong><small>Quando faltar post para a próxima semana, o robô escreve sozinho.</small></span></label>
+                <label class="toggle"><input type="checkbox" name="autoApprove"><span><strong>Aprovar sozinho</strong><small>Os posts já nascem agendados. Use depois de confiar no resultado.</small></span></label>
+                <label class="toggle"><input type="checkbox" name="remindEmail"><span><strong>Receber por e-mail</strong><small>A pauta da semana e cada post na hora de publicar, com o texto pronto (usa o Gmail de prospecção).</small></span></label>
+              </div>
+              <div class="form-actions"><button class="button" type="submit">Salvar voz</button><span class="save-note" id="voice-saved"></span></div>
+            </form>
+          </section>
+          <section class="workspace-panel appearance-panel" aria-labelledby="appearance-title"><div class="panel-heading"><div><h2 id="appearance-title">Aparência</h2><p>O tema claro é o padrão. Você pode trocar quando quiser.</p></div></div><div class="segmented" role="group" aria-label="Tema"><button type="button" class="seg" data-theme-choice="light">Claro</button><button type="button" class="seg" data-theme-choice="dark">Escuro</button></div></section>
+          <form id="settings-form" class="settings-stack">
+            <section class="workspace-panel" aria-labelledby="job-settings-title"><div class="panel-heading"><div><h2 id="job-settings-title">Vagas de emprego</h2><p>Escolha os cargos, níveis e locais que fazem sentido para você.</p></div></div><div class="form-grid"><label class="full">Cargos e áreas de interesse<textarea name="jobRoles" rows="3" placeholder="Ex.: suporte técnico, BI júnior, implantação de software"></textarea></label><label>Cidade para vagas locais<input name="jobCity" placeholder="Ex.: Feira de Santana, BA"></label><label>Níveis de interesse<input name="jobLevels" placeholder="Ex.: estágio, assistente, júnior"></label><label>Data de publicação<select name="jobMaxAgeDays"><option value="1">Últimas 24 horas</option><option value="3">Últimos 3 dias</option><option value="7">Últimos 7 dias</option><option value="14">Últimos 14 dias</option><option value="30">Últimos 30 dias</option><option value="0">Qualquer data (todas as vagas ainda abertas)</option></select></label><label>Compatibilidade mínima para vagas remotas<select name="remoteMinMatch"><option value="50">50% dos requisitos</option><option value="60">60% dos requisitos</option><option value="70">70% dos requisitos (recomendado)</option><option value="80">80% dos requisitos</option><option value="90">90% dos requisitos</option></select></label><label>Compatibilidade mínima para vagas na sua cidade<select name="localMinMatch"><option value="0">Mostrar todas da área</option><option value="30">30% dos requisitos</option><option value="40">40% dos requisitos (recomendado)</option><option value="50">50% dos requisitos</option><option value="60">60% dos requisitos</option></select></label><p class="helper full" style="margin-top:-6px">Vagas remotas concorrem com o Brasil inteiro, então o filtro é mais rigoroso. A porcentagem compara os requisitos que o anúncio cita com o seu currículo e só vale quando o anúncio cita pelo menos 3 requisitos.</p><fieldset class="full"><legend>Modalidades</legend><label class="check"><input type="checkbox" name="remote"> Remoto</label><label class="check"><input type="checkbox" name="hybrid"> Híbrido</label><label class="check"><input type="checkbox" name="onsite"> Presencial</label></fieldset><label class="full">Páginas de carreiras de empresas<textarea name="jobSources" rows="3" placeholder="Uma URL por linha. Aceita Lever, Greenhouse e Pandapé (InfoJobs). Ex.: https://tel.pandape.infojobs.com.br"></textarea></label></div><p class="helper">Cada linha de cargos vira buscas separadas na Gupy e na Sólides, com variações (ex.: “suporte técnico” também busca “analista de suporte”, “help desk” e “técnico de informática”). Vagas da sua cidade são lidas por completo e triadas pelo Radar. Vagas da sua cidade também vêm do Empregos.com.br. Para Feira de Santana, entram também a Casa do Trabalhador e o SineBahia. Jobicy e Remotive trazem vagas remotas internacionais. Você pode adicionar páginas de empresas que usem Lever ou Greenhouse. LinkedIn, Indeed e Glassdoor não estão na coleta automática por restrição dos termos de uso. <a href="https://www.linkedin.com/jobs/" target="_blank" rel="noopener noreferrer">Abrir vagas no LinkedIn ↗</a> · <a href="https://www.infojobs.com.br/" target="_blank" rel="noopener noreferrer">Abrir InfoJobs ↗</a></p></section>
+            <section class="workspace-panel" aria-labelledby="client-settings-title"><div class="panel-heading"><div><h2 id="client-settings-title">Clientes que você quer encontrar</h2><p>Serve de ponto de partida quando você cria uma campanha na tela Clientes.</p></div></div><div class="form-grid"><label class="full">O que você faz ou vende<textarea name="offer" rows="3" placeholder="Ex.: crio sites para pequenos comércios"></textarea></label><label>Tipos de negócio<input name="clientTypes" placeholder="Ex.: lojas, clínicas, restaurantes"></label><label>Região dos clientes<input name="clientRegion" placeholder="Ex.: Feira de Santana e região"></label><label class="full">Sinais de oportunidade<textarea name="clientSignals" rows="2" placeholder="Ex.: empresa sem site ou com catálogo difícil de atualizar"></textarea></label></div></section>
+            <section class="workspace-panel" aria-labelledby="content-settings-title" hidden><div class="panel-heading"><div><h2 id="content-settings-title">Conteúdo</h2><p>Defina os assuntos e o estilo das publicações.</p></div></div><div class="form-grid"><label class="full">Temas de conteúdo<input name="contentTopics" placeholder="Ex.: projetos, dados, automação"></label><label class="full">Estilo das imagens<input name="imageStyle" placeholder="Ex.: editorial, minimalista, tecnológico"></label><label class="full">Instruções para o assistente<textarea name="assistantNotes" rows="3" placeholder="Ex.: escreva em primeira pessoa e evite exageros"></textarea></label></div></section>
+            <section class="workspace-panel" aria-labelledby="linkedin-settings-title"><div class="panel-heading"><div><h2 id="linkedin-settings-title">Conexão com LinkedIn</h2><p>Autorize a publicação na sua conta diretamente pelo LinkedIn.</p></div></div><div class="linkedin-connection"><span class="status adjustments">Não conectado</span><p>Quando a integração estiver ativa, você entrará no LinkedIn e escolherá se autoriza o acesso ao nome, foto, e-mail e publicação de posts. O radar só publicará conteúdo depois da sua aprovação.</p><button class="button" type="button" disabled aria-describedby="linkedin-unavailable">Conectar LinkedIn</button><small id="linkedin-unavailable">A conexão real ainda depende do aplicativo de desenvolvedor e do servidor seguro desta plataforma.</small></div><div class="form-grid"><label class="full">Link público do seu perfil (opcional)<input name="linkedin" type="url" placeholder="https://www.linkedin.com/in/..."></label></div><p class="helper">Colocar o link do perfil acima não concede permissão para publicar.</p></section>
+            <div class="settings-save"><button class="button" type="submit"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg> Salvar configurações</button><span id="settings-saved" class="save-note"></span></div>
+          </form>
+        </section>
+      
+    </main>
+  </div>
+
+    <div id="modal-backdrop" class="modal-backdrop hidden" role="presentation">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button class="modal-close" id="modal-close" aria-label="Fechar"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+        <div id="modal-content"></div>
+      </section>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+    <script src="perfil-pessoal.js"></script>
+    <script src="workspace.js"></script>
+    <script src="application-help.js"></script>
+    <script src="jobs-search.js"></script>
+    <script src="leads-ui.js"></script>
+    <script src="city-autocomplete.js"></script>
+    <script src="posts-ui.js"></script>
+  </body>
+</html>

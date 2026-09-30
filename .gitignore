@@ -1,0 +1,10 @@
+# Dados e chaves do usuário: nunca vão para o GitHub
+.radar-jobs-state.json
+perfil-pessoal.js
+*.pdf
+Claude outputs/
+
+# Arquivos de teste e capturas de tela
+*.png
+test-fixture-*.html
+node_modules/

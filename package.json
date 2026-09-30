@@ -1,0 +1,9 @@
+{
+  "name": "radar",
+  "version": "0.3.1",
+  "private": true,
+  "description": "Portal pessoal de oportunidades: vagas, clientes e publicações no LinkedIn.",
+  "type": "module",
+  "scripts": { "start": "node server.mjs" },
+  "engines": { "node": ">=18" }
+}
