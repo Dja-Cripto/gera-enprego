@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#112926">
+<meta name="robots" content="noindex, nofollow">
+<title>Entrar · Radar</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d7f35a'/%3E%3Cg fill='none' stroke='%23112926' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M24.5 9.5A10 10 0 1 0 26 16'/%3E%3Cpath d='M20.8 12.2A5.5 5.5 0 1 0 21.5 16'/%3E%3Cpath d='m17.5 14.5 7-7'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='2' fill='%23112926'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#112926;--ink-2:#1b3833;--ink-3:#24443d;--lime:#d7f35a;--page:#f2f4f1;--surface:#fff;--line:#dde5de;--line-2:#c9d6cc;--text:#15302a;--text-2:#3f5750;--text-3:#66796f;--mint:#e6f0e8;--bad:#b3372c;--bad-soft:#fbecea;--good:#1f7a45;--good-soft:#e5f4ea;--warn:#94620a;--warn-soft:#fbf2dc;--display:"Space Grotesk","DM Sans",system-ui,sans-serif;--font:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--page);color:var(--text);font:15px/1.55 var(--font);-webkit-font-smoothing:antialiased}
+.shell{min-height:100%;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(420px,1fr)}
+/* ---------- Lado da marca ---------- */
+.story{position:relative;overflow:hidden;background:var(--ink);color:#fff;padding:44px 56px;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:12px;font:700 22px var(--display);position:relative;z-index:2}
+.brand-mark{display:grid;place-items:center;width:40px;height:40px;border-radius:11px;background:var(--lime)}
+.brand-mark svg{width:24px;height:24px}
+.story-main{position:relative;z-index:2;margin:auto 0;max-width:520px;padding:48px 0}
+.kicker{display:inline-flex;align-items:center;gap:10px;font-size:12.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--lime)}
+.kicker::before{content:"";width:28px;height:2px;background:var(--lime)}
+.story h1{font:700 clamp(34px,3.6vw,52px)/1.06 var(--display);letter-spacing:-.02em;margin:18px 0 16px}
+.story h1 em{font-style:normal;color:var(--lime)}
+.story p.lead{font-size:17px;color:#c9d8d1;margin:0 0 34px}
+.features{display:grid;gap:14px;margin:0;padding:0;list-style:none}
+.features li{display:flex;gap:14px;align-items:flex-start;padding:14px 16px;border-radius:14px;background:rgba(27,56,51,.72);border:1px solid var(--ink-3);backdrop-filter:blur(4px)}
+.features .ico{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:10px;background:var(--ink-3)}
+.features .ico svg{width:20px;height:20px;stroke:var(--lime);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.features strong{display:block;font:600 15.5px var(--display);margin-bottom:1px}
+.features span{color:#aec2b9;font-size:14px}
+.story-foot{position:relative;z-index:2;display:flex;gap:18px;flex-wrap:wrap;color:#81998f;font-size:13px}
+.story-foot b{color:#c9d8d1;font-weight:500}
+/* Radar animado */
+.scope{position:absolute;right:-220px;bottom:-220px;width:680px;height:680px;border-radius:50%;z-index:1;pointer-events:none;opacity:.55}
+.scope .ring{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(215,243,90,.14)}
+.scope .ring:nth-child(2){inset:17%}.scope .ring:nth-child(3){inset:34%}.scope .ring:nth-child(4){inset:47%;background:rgba(215,243,90,.18);border-color:rgba(215,243,90,.35)}
+.scope .sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(215,243,90,.28),rgba(215,243,90,0) 70deg,transparent 360deg);animation:spin 6s linear infinite}
+.scope .blip{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 6px rgba(215,243,90,.15);animation:blip 6s ease-out infinite}
+.scope .b1{top:24%;left:30%;animation-delay:.9s}.scope .b2{top:40%;left:14%;animation-delay:2.1s}.scope .b3{top:15%;left:52%;animation-delay:4.2s}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes blip{0%,8%{opacity:0;transform:scale(.4)}12%{opacity:1;transform:scale(1)}60%{opacity:.15}100%{opacity:0}}
+/* ---------- Lado do login ---------- */
+.access{display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.card{width:100%;max-width:420px}
+.card h2{font:700 30px/1.15 var(--display);margin:0 0 6px;letter-spacing:-.01em}
+.card .sub{color:var(--text-2);margin:0 0 26px}
+form{display:grid;gap:16px}
+label.field{display:grid;gap:7px;font-weight:600;font-size:14px;color:var(--text)}
+.input{position:relative;display:flex;align-items:center}
+.input svg.lead{position:absolute;left:14px;width:18px;height:18px;stroke:var(--text-3);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+input[type=text],input[type=password],input[inputmode=numeric]{width:100%;height:50px;padding:0 48px 0 44px;border:1px solid var(--line-2);border-radius:12px;background:var(--surface);font:500 15.5px var(--font);color:var(--text);transition:border-color .15s,box-shadow .15s}
+input:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 4px rgba(23,60,53,.12)}
+input.code{padding:0 16px;text-align:center;font:600 28px/1 var(--display);letter-spacing:.5em;height:62px}
+.eye{position:absolute;right:6px;display:grid;place-items:center;width:38px;height:38px;border:0;background:none;border-radius:9px;color:var(--text-3);cursor:pointer}
+.eye:hover{background:var(--mint);color:var(--ink)}
+.eye svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.check{display:flex;gap:11px;align-items:flex-start;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);cursor:pointer;font-size:14px}
+.check input{margin:2px 0 0;width:17px;height:17px;accent-color:var(--ink);flex:none}
+.check small{display:block;color:var(--text-3);font-size:12.5px;margin-top:2px}
+.btn{height:52px;border:0;border-radius:12px;background:var(--ink);color:#fff;font:600 16px var(--font);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background .15s,transform .05s}
+.btn:hover{background:#0b1f1c}.btn:active{transform:translateY(1px)}
+.btn[disabled]{opacity:.7;cursor:progress}
+.btn .spin{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .7s linear infinite;display:none}
+.btn.loading .spin{display:block}
+.link{border:0;background:none;padding:0;color:var(--text-2);font:500 14px var(--font);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.msg{display:none;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;font-size:14px}
+.msg.show{display:flex}
+.msg.bad{background:var(--bad-soft);color:var(--bad)}.msg.good{background:var(--good-soft);color:var(--good)}.msg.warn{background:var(--warn-soft);color:var(--warn)}
+.msg svg{flex:none;width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;margin-top:1px}
+.caps{display:none;font-size:12.5px;color:var(--warn);font-weight:500}
+.caps.show{display:block}
+.meter{height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;width:0;border-radius:99px;background:var(--bad);transition:width .2s,background .2s}
+.rules{display:grid;gap:4px;margin:0;padding:0;list-style:none;font-size:13px;color:var(--text-3)}
+.rules li{display:flex;gap:8px;align-items:center}.rules li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--line-2)}
+.rules li.ok{color:var(--good)}.rules li.ok::before{background:var(--good)}
+.trust{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:26px;padding-top:20px;border-top:1px solid var(--line);color:var(--text-3);font-size:12.5px}
+.trust span{display:inline-flex;align-items:center;gap:6px}
+.trust svg{width:14px;height:14px;stroke:var(--good);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.step{display:none}.step.active{display:block;animation:rise .35s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.lockbox{text-align:center;padding:28px 18px;border:1px solid var(--line);border-radius:16px;background:var(--surface)}
+.lockbox .big{display:grid;place-items:center;width:56px;height:56px;border-radius:16px;margin:0 auto 14px;background:var(--mint)}
+.lockbox svg{width:26px;height:26px;stroke:var(--ink);fill:none;stroke-width:1.8}
+.center{text-align:center}
+.mobile-brand{display:none}
+@media (max-width:980px){
+  .shell{grid-template-columns:1fr}
+  .story{padding:28px 24px 30px}
+  .story-main{padding:26px 0 8px;margin:0}
+  .story h1{font-size:32px}.story p.lead{margin-bottom:0}
+  .features,.story-foot{display:none}
+  .scope{width:420px;height:420px;right:-160px;bottom:-200px}
+  .access{padding:32px 20px 48px;align-items:flex-start}
+}
+@media (prefers-reduced-motion:reduce){.scope .sweep,.scope .blip,.step.active,.btn .spin{animation:none}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <section class="story" aria-label="Sobre o Radar">
+    <div class="scope" aria-hidden="true"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="sweep"></div><i class="blip b1"></i><i class="blip b2"></i><i class="blip b3"></i></div>
+    <div class="brand"><span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#112926" stroke-width="2.2" stroke-linecap="round"><path d="M19.1 4.9A10 10 0 1 0 22 12"/><path d="M16.2 7.8A6 6 0 1 0 18 12"/><path d="m13.4 10.6 6-6"/><circle cx="12" cy="12" r="1.6" fill="#112926" stroke="none"/></svg></span>Radar</div>
+    <div class="story-main">
+      <span class="kicker">Seu robô de oportunidades</span>
+      <h1>Enquanto você trabalha, o Radar <em>procura por você.</em></h1>
+      <p class="lead">Um painel pessoal que encontra vagas, prospecta clientes e mantém seu LinkedIn ativo. O robô faz a parte repetitiva; você só aprova.</p>
+      <ul class="features">
+        <li><span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg></span><div><strong>Vagas</strong><span>Centenas de anúncios lidos por dia e comparados com o seu currículo.</span></div></li>
+        <li><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span><div><strong>Clientes</strong><span>Empresas da região com nota, motivo e a primeira mensagem pronta.</span></div></li>
+        <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><div><strong>Publicações</strong><span>Posts do LinkedIn escritos a partir do que você fez de verdade.</span></div></li>
+      </ul>
+    </div>
+    <div class="story-foot"><span><b>Acesso privado.</b> Nada é enviado ou publicado sem aprovação.</span></div>
+  </section>
+
+  <main class="access">
+    <div class="card">
+      <!-- Carregando -->
+      <div class="step active" id="step-loading"><p class="sub">Carregando…</p></div>
+
+      <!-- Entrar -->
+      <div class="step" id="step-login">
+        <h2>Bem-vindo de volta</h2>
+        <p class="sub">Entre para abrir o seu painel.</p>
+        <form id="form-login" autocomplete="on" novalidate>
+          <div class="msg" id="login-msg" role="alert"></div>
+          <label class="field">Usuário<div class="input"><svg class="lead" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><input type="text" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></div></label>
+          <label class="field">Senha<div class="input"><svg class="lead" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><input type="password" name="password" autocomplete="current-password" required><button type="button" class="eye" aria-label="Mostrar senha" data-eye><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div><span class="caps">Caps Lock está ligado.</span></label>
+          <label class="check"><input type="checkbox" name="remember"><span>Este computador é meu<small>Fica conectado por 30 dias. Em computador de outra pessoa, deixe desmarcado: a sessão acaba em 12 horas.</small></span></label>
+          <button class="btn" type="submit"><span class="spin"></span><span>Entrar</span></button>
+        </form>
+      </div>
+
+      <!-- Código por e-mail -->
+      <div class="step" id="step-code">
+        <h2>Confirme que é você</h2>
+        <p class="sub">Este computador é novo para o Radar. Enviamos um código de 6 dígitos para o seu e-mail.</p>
+        <form id="form-code" novalidate>
+          <div class="msg" id="code-msg" role="alert"></div>
+          <label class="field">Código<input class="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" required></label>
+          <label class="check"><input type="checkbox" name="trust" checked><span>Confiar neste computador<small>Não pede código aqui pelos próximos 30 dias.</small></span></label>
+          <button class="btn" type="submit"><span class="spin"></span><span>Confirmar</span></button>
+          <p class="center"><button class="link" type="button" data-back>Voltar e entrar de novo</button></p>
+        </form>
+      </div>
+
+      <!-- Primeiro acesso -->
+      <div class="step" id="step-setup">
+        <h2>Crie o seu acesso</h2>
+        <p class="sub">É a primeira vez que o Radar abre. Defina o usuário e a senha que vão proteger o seu painel em qualquer computador.</p>
+        <form id="form-setup" autocomplete="on" novalidate>
+          <div class="msg" id="setup-msg" role="alert"></div>
+          <label class="field">Usuário<div class="input"><svg class="lead" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><input type="text" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="ex.: daniel" required></div></label>
+          <label class="field">Senha<div class="input"><svg class="lead" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><input type="password" name="password" autocomplete="new-password" required><button type="button" class="eye" aria-label="Mostrar senha" data-eye><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></label>
+          <div class="meter" aria-hidden="true"><i id="meter"></i></div>
+          <ul class="rules" id="rules"><li data-rule="len">Pelo menos <span id="minlen">10</span> caracteres</li><li data-rule="mix">Letras e números (ou símbolos)</li><li data-rule="user">Diferente do usuário</li></ul>
+          <label class="field">Repita a senha<div class="input"><svg class="lead" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg><input type="password" name="confirm" autocomplete="new-password" required></div></label>
+          <button class="btn" type="submit"><span class="spin"></span><span>Criar acesso e entrar</span></button>
+        </form>
+      </div>
+
+      <!-- Sem acesso criado e fora do computador do servidor -->
+      <div class="step" id="step-closed">
+        <div class="lockbox"><div class="big"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+          <h2 style="font-size:22px">Acesso ainda não configurado</h2>
+          <p class="sub" style="margin:8px 0 0">Por segurança, o primeiro usuário só pode ser criado no próprio computador onde o Radar está instalado, ou pelo arquivo <strong>definir-senha.bat</strong>.</p></div>
+      </div>
+
+      <div class="trust" aria-label="Proteções">
+        <span><svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>Senha criptografada</span>
+        <span><svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>Bloqueio após tentativas erradas</span>
+        <span><svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>Sessão que expira sozinha</span>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+(function(){
+  const $=s=>document.querySelector(s);
+  const icons={bad:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>',good:'<svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>',warn:'<svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>'};
+  let minPassword=10,ticket=null,remember=false;
+  const back=()=>{let v=new URLSearchParams(location.search).get('volta')||'/';if(!/^\/(?!\/)/.test(v)||v.startsWith('/entrar'))v='/';return v.includes('#')?v:v+location.hash};
+  function show(id){document.querySelectorAll('.step').forEach(s=>s.classList.toggle('active',s.id===id));const f=document.querySelector(`#${id} input`);if(f)setTimeout(()=>f.focus(),60)}
+  function msg(id,text,kind='bad'){const el=$(id);if(!text){el.classList.remove('show');el.innerHTML='';return}el.className=`msg ${kind} show`;el.innerHTML=icons[kind]+'<span></span>';el.lastChild.textContent=text}
+  function busy(form,on){const b=form.querySelector('.btn');b.disabled=on;b.classList.toggle('loading',on)}
+  async function post(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),credentials:'same-origin'});let d={};try{d=await r.json()}catch{}return {ok:r.ok,status:r.status,data:d}}
+  function enter(){msg('#login-msg','Tudo certo! Abrindo o seu painel…','good');location.replace(back())}
+
+  document.addEventListener('click',e=>{const eye=e.target.closest('[data-eye]');if(eye){const i=eye.parentElement.querySelector('input');const on=i.type==='password';i.type=on?'text':'password';eye.setAttribute('aria-label',on?'Esconder senha':'Mostrar senha');i.focus()}if(e.target.closest('[data-back]')){ticket=null;show('step-login')}});
+  document.addEventListener('keyup',e=>{if(e.target.type==='password'||e.target.name==='password'){const c=e.target.closest('label')?.querySelector('.caps');if(c&&e.getModifierState)c.classList.toggle('show',e.getModifierState('CapsLock'))}});
+
+  $('#form-login').addEventListener('submit',async e=>{
+    e.preventDefault();const f=e.target;msg('#login-msg','');
+    const username=f.username.value.trim(),password=f.password.value;remember=f.remember.checked;
+    if(!username||!password){msg('#login-msg','Preencha usuário e senha.');return}
+    busy(f,true);
+    try{const r=await post('/api/auth/login',{username,password,remember});
+      if(r.ok&&r.data.needCode){ticket=r.data.ticket;f.password.value='';show('step-code');return}
+      if(r.ok)return enter();
+      msg('#login-msg',r.data.error||'Não foi possível entrar.',r.status===429?'warn':'bad');f.password.value='';f.password.focus();
+    }catch{msg('#login-msg','Sem conexão com o Radar. Tente de novo.')}finally{busy(f,false)}
+  });
+  $('#form-code').addEventListener('submit',async e=>{
+    e.preventDefault();const f=e.target;msg('#code-msg','');const code=f.code.value.replace(/\D/g,'');
+    if(code.length!==6){msg('#code-msg','Digite os 6 números do código.');return}
+    busy(f,true);
+    try{const r=await post('/api/auth/verify',{ticket,code,trust:f.trust.checked});
+      if(r.ok)return enter();
+      msg('#code-msg',r.data.error||'Código incorreto.');f.code.value='';
+      if(r.data.restart)setTimeout(()=>show('step-login'),1800);
+    }catch{msg('#code-msg','Sem conexão com o Radar.')}finally{busy(f,false)}
+  });
+  $('#form-code').code.addEventListener('input',e=>{e.target.value=e.target.value.replace(/\D/g,'').slice(0,6);if(e.target.value.length===6)e.target.form.requestSubmit()});
+
+  function rules(){const f=$('#form-setup');const p=f.password.value,u=f.username.value.trim().toLowerCase();
+    const r={len:p.length>=minPassword,mix:/[a-zA-Z]/.test(p)&&/[^a-zA-Z]/.test(p),user:!!p&&(!u||!p.toLowerCase().includes(u))};
+    for(const [k,v] of Object.entries(r))document.querySelector(`[data-rule="${k}"]`).classList.toggle('ok',v);
+    let score=(r.len?1:0)+(r.mix?1:0)+(p.length>=14?1:0)+(/[^a-zA-Z0-9]/.test(p)?1:0);const m=$('#meter');m.style.width=`${Math.max(p?12:0,score*25)}%`;m.style.background=score<=1?'var(--bad)':score===2?'var(--warn)':'var(--good)';
+    return r.len&&r.mix&&r.user}
+  $('#form-setup').addEventListener('input',rules);
+  $('#form-setup').addEventListener('submit',async e=>{
+    e.preventDefault();const f=e.target;msg('#setup-msg','');
+    const username=f.username.value.trim(),password=f.password.value;
+    if(!/^[a-zA-Z0-9._-]{3,32}$/.test(username)){msg('#setup-msg','Use um usuário de 3 a 32 letras ou números, sem espaços.');return}
+    if(!rules()){msg('#setup-msg','A senha ainda não atende aos requisitos abaixo.');return}
+    if(password!==f.confirm.value){msg('#setup-msg','As duas senhas não são iguais.');return}
+    busy(f,true);
+    try{const r=await post('/api/auth/setup',{username,password});if(r.ok)return enter();msg('#setup-msg',r.data.error||'Não foi possível criar o acesso.')}
+    catch{msg('#setup-msg','Sem conexão com o Radar.')}finally{busy(f,false)}
+  });
+
+  fetch('/api/auth/status',{credentials:'same-origin'}).then(r=>r.json()).then(s=>{
+    minPassword=s.minPassword||10;$('#minlen').textContent=minPassword;
+    if(s.loggedIn)return location.replace(back());
+    if(!s.configured)return show(s.canSetup?'step-setup':'step-closed');
+    show('step-login');
+    if(s.lockedMinutes)msg('#login-msg',`Muitas tentativas. Tente de novo em ${s.lockedMinutes} minutos.`,'warn');
+  }).catch(()=>{show('step-login');msg('#login-msg','Sem conexão com o Radar. Confira se ele está ligado.')});
+})();
+</script>
+</body>
+</html>

@@ -8,6 +8,7 @@ import {matchProfile} from './match-profile.mjs';
 import {collectApis} from './sources-apis.mjs';
 import {NICHES,OFFERS,buildOfferSheet,searchCampaign,composeMessages,scoreLead,STATUSES,customNiche} from './leads.mjs';
 import {sendMail} from './mailer.mjs';
+import {createAuth,isHttps,isLocal,passwordProblem,MIN_PASSWORD} from './auth.mjs';
 import {INTERVIEW,CHECKIN,PILLARS,DEFAULT_VOICE,DAY_NAMES,AI_DEFAULTS,aiConfig,aiChat,buildStoryBank,planWeek,writePost,marketSignals,searchPhotos,photoProvider,reminderEmail} from './posts.mjs';
 
 const root=dirname(fileURLToPath(import.meta.url));
@@ -16,6 +17,13 @@ const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=u
 const cache=new Map();
 const cacheMs=60*60*1000;
 const stateFile=join(root,'.radar-jobs-state.json');
+// ---------- Proteção por senha ----------
+const auth=createAuth({file:join(root,'.radar-auth.json'),sendCode:async(code,req)=>{
+  const k=state.integrations||{};if(!k.gmailUser||!k.gmailPass)throw Error('configure o Gmail em Meu perfil › E-mail para prospecção');
+  const onde=String(req.headers['user-agent']||'').replace(/\(.*?\)/g,'').slice(0,80);
+  await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:'Radar',to:k.gmailUser,subject:`Seu código de acesso ao Radar: ${code}`,text:`Alguém (esperamos que você) entrou no Radar com a sua senha a partir de um computador novo.\n\nCódigo: ${code}\n\nEle vale por 10 minutos.\nNavegador: ${onde}\nHorário: ${new Date().toLocaleString('pt-BR',{timeZone:'America/Bahia'})}\n\nSe não foi você, troque a senha em Meu perfil › Segurança.\n\n— Radar`});
+}});
+await auth.load();
 const sineBahiaUrl='https://www.ba.gov.br/trabalho/280/vagas-do-dia-sinebahia';
 let state={settings:null,profile:null,latest:null,seen:{},catalog:[],decisions:{},integrations:{},apiCache:{},manualJobs:[],campaigns:[],leads:{},leadBlocks:{ids:{},phones:{}},emailLog:[]};
 try{state={...state,...JSON.parse(await readFile(stateFile,'utf8'))}}catch{}
@@ -279,6 +287,8 @@ function emailPublic(){const k=state.integrations||{};return {user:k.gmailUser||
 function emailsSentToday(){const day=new Date().toLocaleDateString('pt-BR',{timeZone:'America/Bahia'});return (state.emailLog||[]).filter(e=>new Date(e.at).toLocaleDateString('pt-BR',{timeZone:'America/Bahia'})===day).length}
 function senderInfo(){const k=state.integrations||{};const p=state.profile||{};const nameParts=String(p.name||'').split(/\s+/).filter(w=>w.length>2&&!/^(de|da|do|dos|das)$/i.test(w));return {name:k.senderName||(nameParts.length?`${nameParts[0]} ${nameParts.at(-1)}`:'Daniel'),title:k.senderTitle||'',phone:k.senderPhone||p.phone||'',site:k.senderSite||p.portfolio||''}}
 function jobCatalogForSignals(){const cat=(state.latest?.catalog||[]).map(c=>({title:c.title,company:c.company,source:c.source,url:c.url}));for(const j of state.latest?.jobs||[])cat.push({title:j.title,company:j.company,source:j.source,url:j.sourceUrl});return cat}
+// Empresas de campanhas excluídas: some quem ainda não foi contatado; quem já teve conversa fica no histórico.
+function dropOrphanLeads(){const ids=new Set(state.campaigns.map(c=>c.id));let n=0;for(const [k,l] of Object.entries(state.leads||{}))if(!ids.has(l.campaignId)&&l.status==='new'){delete state.leads[k];n++}return n}
 function leadsSummary(){const all=Object.values(state.leads||{});const by={};for(const s of STATUSES)by[s]=0;for(const l of all)by[l.status]=(by[l.status]||0)+1;return by}
 function leadMetrics(){const out={};for(const l of Object.values(state.leads||{})){const k=`${l.campaignId}|${l.niche}`;const m=out[k]||(out[k]={campaignId:l.campaignId,niche:l.niche,total:0,contacted:0,replied:0,meeting:0,won:0});m.total++;if(['contacted','replied','meeting','proposal','won','lost'].includes(l.status)||l.contactedAt)m.contacted++;if(['replied','meeting','proposal','won'].includes(l.status)||l.repliedAt)m.replied++;if(['meeting','proposal','won'].includes(l.status))m.meeting++;if(l.status==='won')m.won++}return Object.values(out)}
 function cleanCampaign(d,prev={}){
@@ -307,7 +317,7 @@ async function leadsApi(req,res,url){
     const c=state.campaigns.find(x=>x.id===parts[2]);
     if(!c)return reply(res,404,{error:'Campanha não encontrada'});
     if(parts.length===3&&req.method==='PUT'){const d=await bodyJson(req);const i=state.campaigns.indexOf(c);state.campaigns[i]=cleanCampaign(d,c);await persistState();return reply(res,200,{campaign:state.campaigns[i]})}
-    if(parts.length===3&&req.method==='DELETE'){state.campaigns=state.campaigns.filter(x=>x!==c);await persistState();return reply(res,200,{ok:true})}
+    if(parts.length===3&&req.method==='DELETE'){state.campaigns=state.campaigns.filter(x=>x!==c);const removed=dropOrphanLeads();await persistState();return reply(res,200,{ok:true,removed})}
     if(parts[3]==='search'&&req.method==='POST'){
       const stats=await searchCampaign(c,{http:httpTools,keys:state.integrations,state,jobCatalog:jobCatalogForSignals(),sender:senderInfo()});
       await persistState();
@@ -466,9 +476,45 @@ async function postsTick(){
   }catch(e){console.error('Publicações:',e.message)}
 }
 
+// Rotas públicas (tela de entrada) e a trava que exige sessão em todo o resto.
+const PUBLIC_FILES=new Set(['/entrar','/entrar.html']);
+function sendCookies(res,cookies){if(cookies?.length)res.setHeader('Set-Cookie',cookies)}
+async function authRoutes(req,res,url){
+  const p=url.pathname;
+  if(PUBLIC_FILES.has(p)&&req.method==='GET'){
+    if(auth.session(req)){res.writeHead(302,{Location:safeReturn(url.searchParams.get('volta'))});res.end();return true}
+    const html=await readFile(join(root,'entrar.html'));res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store',"Content-Security-Policy":"default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'"});res.end(html);return true;
+  }
+  if(p==='/api/health')return reply(res,200,{ok:true,version:'0.4',startedAt,canRestart:process.env.RADAR_LOOP==='1'}),true;
+  if(p==='/api/auth/status'&&req.method==='GET')return reply(res,200,{...auth.status(req),minPassword:MIN_PASSWORD}),true;
+  if(p==='/api/auth/setup'&&req.method==='POST'){const d=await bodyJson(req);const r=await auth.setup(req,d);return finishAuth(res,r.status===200?await auth.login(req,{username:d.username,password:d.password,remember:true}):r)}
+  if(p==='/api/auth/login'&&req.method==='POST')return finishAuth(res,await auth.login(req,await bodyJson(req)));
+  if(p==='/api/auth/verify'&&req.method==='POST')return finishAuth(res,await auth.verify(req,await bodyJson(req)));
+  // Daqui para baixo, tudo exige estar logado.
+  const session=auth.session(req);
+  if(!session){
+    if(p.startsWith('/api/'))return reply(res,401,{error:'Faça login para continuar.',login:true}),true;
+    res.writeHead(302,{Location:`/entrar${p==='/'?'':`?volta=${encodeURIComponent(p+url.search)}`}`,'Cache-Control':'no-store'});res.end();return true;
+  }
+  req.session=session;
+  if(p==='/api/auth/logout'&&req.method==='POST'){const d=await bodyJson(req);sendCookies(res,await auth.logout(req,{all:d.all||false}));return reply(res,200,{ok:true}),true}
+  if(p==='/api/auth/password'&&req.method==='POST')return finishAuth(res,await auth.changePassword(req,await bodyJson(req)));
+  if(p==='/api/auth/security'&&req.method==='GET')return reply(res,200,{user:session.user,twoFactor:auth.twoFactor(),emailReady:!!(state.integrations?.gmailUser&&state.integrations?.gmailPass),sessions:auth.sessions(req),events:auth.events(),https:isHttps(req),local:isLocal(req)}),true;
+  if(p==='/api/auth/two-factor'&&req.method==='POST'){const d=await bodyJson(req);if(d.enabled&&!(state.integrations?.gmailUser&&state.integrations?.gmailPass))return reply(res,400,{error:'Configure primeiro o Gmail em Meu perfil › E-mail para prospecção: é para lá que o código vai.'}),true;await auth.setTwoFactor(!!d.enabled);return reply(res,200,{ok:true,twoFactor:auth.twoFactor()}),true}
+  return false;
+}
+function safeReturn(v){v=String(v||'/');return /^\/(?!\/)[^\s]*$/.test(v)&&!v.startsWith('/entrar')?v:'/'}
+function finishAuth(res,r){sendCookies(res,r.cookies);reply(res,r.status,r.body);return true}
+
 const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,`http://localhost:${port}`);
+    // Cabeçalhos de segurança em todas as respostas.
+    res.setHeader('X-Frame-Options','DENY');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('Permissions-Policy','camera=(), geolocation=(), microphone=(self)');
+    if(isHttps(req))res.setHeader('Strict-Transport-Security','max-age=31536000');
+    // Pedidos que alteram dados só valem vindos do próprio Radar (proteção contra sites de terceiros).
+    if(req.method!=='GET'&&req.method!=='HEAD'&&req.headers.origin){let same=false;try{same=new URL(req.headers.origin).host===req.headers.host}catch{}if(!same)return reply(res,403,{error:'Origem não permitida'})}
+    if(await authRoutes(req,res,url))return;
     if(url.pathname==='/api/jobs/search'&&req.method==='POST'){
       const data=await bodyJson(req);const settings=data.settings||{};
       if(data.profile&&typeof data.profile==='object')state.profile=data.profile;
@@ -533,7 +579,6 @@ const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/cidades-br.json'){const content=await readFile(join(root,'cidades-br.json'));res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'public, max-age=86400'});return res.end(content)}
     // Reinício pedido pela própria tela (depois de uma atualização). O iniciar-radar.bat sobe o servidor de novo na mesma janela.
     if(url.pathname==='/api/restart'&&req.method==='POST'){if(req.headers['x-radar']!=='1')return reply(res,403,{error:'Pedido inválido'});reply(res,200,{ok:true,restarting:true});console.log('Reiniciando o Radar para carregar a versão nova…');setTimeout(()=>process.exit(75),300);return}
-    if(url.pathname==='/api/health')return reply(res,200,{ok:true,version:'0.3.1',port,startedAt,canRestart:process.env.RADAR_LOOP==='1'});
     if(req.method!=='GET')return reply(res,405,{error:'Método não permitido'});
     const pathname=decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname);
     const file=resolve(root,'.'+pathname);
@@ -542,11 +587,32 @@ const server=http.createServer(async(req,res)=>{
     const content=await readFile(file);res.writeHead(200,{'Content-Type':mime[extname(file)]});res.end(content);
   }catch(error){reply(res,error.code==='ENOENT'?404:500,{error:error.message})}
 });
+dropOrphanLeads();
 let running=false;
 const startedAt=new Date().toISOString();
 async function dailyRun(){if(state.settings&&!running){running=true;try{const result=await collect(state.settings);if(result.sources.length){state.latest=result;await persistState();console.log(`Busca diária: ${result.jobs.length} vagas relevantes`)}}catch(error){console.error(`Busca diária falhou: ${error.message}`)}finally{running=false}}}
 function scheduleDaily(){const now=new Date();const brazilNow=new Date(now.toLocaleString('en-US',{timeZone:'America/Bahia'}));const next=new Date(brazilNow);next.setHours(24,0,0,0);const delay=Math.max(60000,next-brazilNow);setTimeout(async()=>{await dailyRun();scheduleDaily()},delay).unref()}
-if(process.argv[1]===fileURLToPath(import.meta.url)){server.on('error',error=>{if(error.code==='EADDRINUSE'){console.error(`\nA porta ${port} já está em uso: outra janela do Radar (versão antiga) ainda está aberta.\nFeche essa janela ou use iniciar-radar.bat, que fecha a versão antiga automaticamente.\n`);process.exit(1)}throw error});server.listen(port,'127.0.0.1',()=>{console.log(`RadarDaniel em http://localhost:${port}`);scheduleDaily();setInterval(postsTick,10*60000).unref();setTimeout(postsTick,30000).unref();
+// definir-senha.bat → node server.mjs --definir-senha : cria ou troca o acesso direto no computador do servidor.
+async function passwordCli(){
+  const {createInterface}=await import('node:readline');
+  const tty=!!process.stdin.isTTY;
+  const rl=createInterface({input:process.stdin,output:process.stdout,terminal:tty});
+  // Fila de linhas: funciona digitando no terminal e também com entrada redirecionada.
+  const lines=[],waiting=[];rl.on('line',l=>{const w=waiting.shift();if(w)w(l);else lines.push(l)});
+  let hide=false;const orig=rl._writeToOutput?.bind(rl);if(tty&&orig)rl._writeToOutput=c=>{if(hide&&!/^\r?\n$/.test(c)&&!c.startsWith(prompt))orig(c.replace(/[^\r\n]/g,'*'));else orig(c)};
+  let prompt='';
+  const ask=(q,hidden)=>{prompt=q;hide=!!hidden;process.stdout.write(q);return new Promise(r=>{const done=v=>{hide=false;if(!tty)process.stdout.write('\n');r(v)};if(lines.length)done(lines.shift());else waiting.push(done)})};
+  console.log('\n=== Radar: definir usuário e senha de acesso ===');
+  console.log(auth.hasUser()?'Já existe um acesso. O novo vai substituí-lo e desconectar todos os aparelhos.\n':'Crie o acesso que você vai usar para entrar no Radar.\n');
+  const username=(await ask('Usuário (ex.: daniel): '))||'daniel';
+  let password;
+  for(;;){password=await ask(`Senha (mínimo ${MIN_PASSWORD} caracteres, letras e números): `,true);const prob=passwordProblem(password,username);if(prob){console.log(prob);continue}const again=await ask('Repita a senha: ',true);if(again!==password){console.log('As senhas não conferem. Tente de novo.');continue}break}
+  const r=await auth.setPassword(username,password,null);rl.close();
+  console.log(r.status===200?`\nPronto! Usuário "${username.trim().toLowerCase()}" criado. Todos os aparelhos foram desconectados.\n`:`\nNão deu certo: ${r.body.error}\n`);
+  process.exit(r.status===200?0:1);
+}
+if(process.argv.includes('--definir-senha'))await passwordCli();
+if(process.argv[1]===fileURLToPath(import.meta.url)){server.on('error',error=>{if(error.code==='EADDRINUSE'){console.error(`\nA porta ${port} já está em uso: outra janela do Radar (versão antiga) ainda está aberta.\nFeche essa janela ou use iniciar-radar.bat, que fecha a versão antiga automaticamente.\n`);process.exit(1)}throw error});server.listen(port,'127.0.0.1',()=>{console.log(`RadarDaniel em http://localhost:${port}`);if(!auth.hasUser())console.log('Primeiro acesso: abra http://localhost:'+port+' neste computador para criar seu usuário e senha.');scheduleDaily();setInterval(postsTick,10*60000).unref();setTimeout(postsTick,30000).unref();
   // Se o computador estava desligado na hora da busca diária, recupera ao ligar o servidor.
   const last=Date.parse(state.latest?.searchedAt||0);
   if(state.settings&&(!Number.isFinite(last)||Date.now()-last>20*3600000)){console.log('Última busca tem mais de 20 horas; buscando agora.');dailyRun()}

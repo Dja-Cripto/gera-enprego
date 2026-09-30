@@ -17,7 +17,7 @@ git config user.name >nul 2>&1 || git config user.name "Dja-Cripto"
 git config user.email >nul 2>&1 || git config user.email "Dja-Cripto@users.noreply.github.com"
 git add -A
 REM Trava de seguranca: dados pessoais e chaves nunca podem ir para o GitHub.
-git diff --cached --name-only | findstr /i /c:".radar-jobs-state.json" /c:"perfil-pessoal.js" /c:".pdf" >nul
+git diff --cached --name-only | findstr /i /c:".radar-jobs-state.json" /c:".radar-auth.json" /c:"perfil-pessoal.js" /c:"diagnostico-servidor.txt" /c:".pdf" >nul
 if not errorlevel 1 (
   echo ERRO: arquivos com dados pessoais ou chaves entraram no envio. Nada foi enviado.
   git reset >nul

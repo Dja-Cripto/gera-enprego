@@ -11,3 +11,7 @@ node_modules/
 
 # Resultado do diagnóstico do servidor (tem o IP)
 diagnostico-servidor.txt
+
+# Usuário, senha (hash) e sessões de acesso
+.radar-auth.json
+.radar-auth.json.tmp

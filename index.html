@@ -66,6 +66,7 @@
         <span class="profile-chip-text"><strong id="sidebar-name">Daniel Alves</strong><small>Perfil e configurações</small></span>
         <svg class="i chip-icon" aria-hidden="true"><use href="#i-settings"/></svg>
       </button>
+      <button class="sidebar-logout" id="sidebar-logout" type="button"><svg class="i" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sair</button>
     </aside>
 
     <main class="main">
@@ -223,6 +224,10 @@
             <div class="profile-card-main"><h2 id="profile-card-name">Daniel</h2><p id="profile-card-line" class="muted"></p><p id="profile-card-contact" class="profile-card-contact"></p></div>
             <div class="profile-card-actions"><button class="button button-secondary" data-view="profile">Editar dados e currículo</button></div>
           </div>
+          <section class="workspace-panel extra-sources" aria-labelledby="security-title">
+            <div class="panel-heading"><div><h2 id="security-title">Segurança</h2><p>Quem pode entrar no seu Radar e de onde.</p></div></div>
+            <div id="security-body"><p class="muted">Carregando…</p></div>
+          </section>
           <section class="workspace-panel extra-sources" aria-labelledby="extra-sources-title">
             <div class="panel-heading"><div><h2 id="extra-sources-title">Fontes extras de vagas</h2><p>Serviços que ampliam a busca. Cada um precisa de uma chave de acesso gratuita ou de baixo custo. As chaves ficam guardadas só no seu computador, no servidor do Radar.</p></div></div>
             <form id="integrations-form" class="source-keys" autocomplete="off">
@@ -350,6 +355,7 @@
     </div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="app.js"></script>
+    <script src="security-ui.js"></script>
     <script src="perfil-pessoal.js"></script>
     <script src="workspace.js"></script>
     <script src="application-help.js"></script>

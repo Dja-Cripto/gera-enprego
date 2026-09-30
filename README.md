@@ -24,6 +24,14 @@ Depois abra http://localhost:8765.
 
 As chaves ficam só no computador de quem usa, no arquivo `.radar-jobs-state.json`, que não vai para o GitHub.
 
+## Acesso protegido
+- **Primeira abertura:** o Radar pede para criar usuário e senha. Isso só é permitido no próprio computador onde ele roda; pela internet, a tela recusa.
+- **Senha:** fica guardada apenas como hash (scrypt) em `.radar-auth.json`, que não vai para o GitHub.
+- **Sessão:** cookie protegido (HttpOnly, SameSite, Secure em HTTPS). Dura 12 horas, ou 30 dias em "Este computador é meu".
+- **Tentativas erradas:** depois de 5, o acesso fica bloqueado por 15 minutos, e o bloqueio aumenta se continuar.
+- **Opcional:** código de 6 dígitos por e-mail ao entrar de um computador novo (Meu perfil › Segurança).
+- **Esqueceu a senha:** rode `definir-senha.bat` no computador do servidor.
+
 ## Dados pessoais
 - `perfil-pessoal.js` (opcional, fora do GitHub) preenche o currículo na primeira abertura.
 - Sem ele, o Radar começa em branco e você preenche em **Meu currículo**.
