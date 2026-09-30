@@ -8,3 +8,6 @@ Claude outputs/
 *.png
 test-fixture-*.html
 node_modules/
+
+# Resultado do diagnóstico do servidor (tem o IP)
+diagnostico-servidor.txt
