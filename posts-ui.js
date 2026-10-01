@@ -1,5 +1,5 @@
 // Publicações: entrevista, check-in semanal, pauta automática, imagens e publicação assistida.
-const PS={loaded:false,items:[],voice:{},interview:{},stories:[],diary:[],questions:{interview:[],checkin:[]},pillars:[],dayNames:[],ai:{},pexels:false,email:{},signals:{},
+const PS={loaded:false,items:[],voice:{},interview:{},stories:[],diary:[],questions:{interview:[],checkin:[]},pillars:[],dayNames:[],ai:{},pexels:false,email:{},linkedin:{},signals:{},
   tab:"review",selectedId:null,busy:"",photos:{},error:null};
 const POST_TABS=[
   {key:"review",label:"Para aprovar",test:p=>p.status==="draft"},
@@ -22,6 +22,7 @@ async function loadPosts(){
   try{const d=await papi("/api/posts");Object.assign(PS,d,{items:d.items||[],loaded:true,error:null})}
   catch{PS.loaded=true;PS.error="O servidor do Radar não respondeu. Abra pelo iniciar-radar.bat para usar Publicações."}
   renderPosts();renderAiPanel();renderVoicePanel();if(typeof render==="function")render();
+  papi('/api/posts/plan-status').then(s=>{if(s.status==='running')followPlan()}).catch(()=>{});
 }
 function currentProfile(){try{return typeof profile!=="undefined"?profile:null}catch{return null}}
 function whenText(iso){if(!iso)return "";const d=new Date(iso);return d.toLocaleString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).replace(/\./g,"")}
@@ -92,13 +93,17 @@ function postDetailHtml(p){
     <h2 id="modal-title">${escapeHtml(p.hook||"Post")}</h2>
     <p class="d-fit"><span class="state post-${p.status}">${POST_STATUS[p.status]}</span> <label class="inline-date">para <input type="datetime-local" id="post-when" value="${localInput(p.scheduledFor)}"></label></p>
     <div class="d-actions">
-      ${p.status==="draft"?`<button class="button" data-post-action="approve" data-id="${id}">${icon("check")} Aprovar</button>`:""}
+      ${p.status==="draft"||p.status==="approved"&&!p.humanApprovedAt?`<button class="button" data-post-action="approve" data-id="${id}">${icon("check")} ${p.status==='approved'?'Confirmar aprovação':'Aprovar'}</button>`:""}
       ${p.status!=="published"?`<a class="button ${p.status==="draft"?"button-secondary":""}" href="${escapeHtml(share)}" target="_blank" rel="noopener noreferrer" data-post-share="${id}">${icon("linkedin")} Publicar no LinkedIn</a>`:""}
       <button class="button button-secondary" data-post-action="copy" data-id="${id}">${icon("copy")} Copiar texto</button>
+      ${p.status==="approved"&&p.humanApprovedAt&&PS.linkedin?.connected?`<button class="button" data-post-action="publish-now" data-id="${id}">Publicar agora pela conexão</button>`:""}
       ${p.status==="approved"?`<button class="button button-ghost" data-post-action="published" data-id="${id}">Já publiquei</button><button class="button button-ghost" data-post-action="unapprove" data-id="${id}">Voltar para rascunho</button>`:""}
       ${p.status!=="published"?`<button class="button button-ghost danger" data-post-action="skip" data-id="${id}">Descartar</button>`:""}
     </div>
     <p class="d-hint" id="share-hint" hidden>O LinkedIn abre com o texto pronto. Anexe a imagem, publique e depois clique em <strong>Já publiquei</strong>. <button class="button button-secondary" data-post-action="published" data-id="${id}">${icon("check")} Já publiquei</button></p>
+    ${p.linkedinError?`<p class="notice warn">LinkedIn: ${escapeHtml(p.linkedinError)}${p.linkedinAttemptedAt?' Confira seu perfil antes de tentar novamente.':''}</p>`:''}
+    ${p.linkedinUrl?`<p><a href="${escapeHtml(p.linkedinUrl)}" target="_blank" rel="noopener noreferrer">Abrir publicação no LinkedIn ↗</a></p>`:''}
+    ${p.status==='approved'&&p.humanApprovedAt&&PS.linkedin?.autoPublish?'<p class="muted small">Publicação automática ligada: este post será enviado no horário escolhido se a imagem estiver pronta.</p>':''}
   </header>`;
   h+=section("Texto",`<textarea class="msg-box" id="post-text" rows="16">${escapeHtml(p.text)}</textarea>
     <div class="row-actions"><span class="muted small" id="post-count">${p.text.length} caracteres</span><button class="button button-ghost" data-post-action="save" data-id="${id}">Salvar texto</button></div>
@@ -108,9 +113,10 @@ function postDetailHtml(p){
   if(p.factsUsed?.length)h+=`<details class="disclosure"><summary>Fatos usados pela IA ${icon("chevron","i chev")}</summary><div class="disclosure-body"><ul class="plain">${p.factsUsed.map(f=>`<li>${escapeHtml(f)}</li>`).join("")}</ul><p class="muted small">Escrito por ${escapeHtml(p.model||"IA")}. Se algo não for verdade, corrija o texto antes de aprovar.</p></div></details>`;
   return h;
 }
+function cardStyle(p){return ['contrast','editorial','minimal'].includes(p.image?.style)?p.image.style:['contrast','editorial','minimal'][parseInt(String(p.id||'0').slice(-2),16)%3||0]}
 function imageBodyHtml(p){
   const img=p.image||{};const id=p.id;
-  if(img.kind==="print")return `<div class="img-box"><p><strong>Sugestão:</strong> ${escapeHtml(img.printIdea||"Um print ou foto real do trabalho descrito no post.")}</p><p class="muted small">Prints e fotos reais do seu trabalho são o que mais passa confiança no LinkedIn. Tire o print, anexe ao publicar e pronto.</p></div>`;
+  if(img.kind==="print")return `<div class="img-box"><p><strong>Sugestão:</strong> ${escapeHtml(img.printIdea||"Um print ou foto real do trabalho descrito no post.")}</p><p class="muted small">Escolha um PNG ou JPEG do seu trabalho para anexar automaticamente ao post.</p><input id="post-image-file" type="file" accept="image/png,image/jpeg"><button class="button button-secondary" data-post-action="upload-image" data-id="${id}">Guardar imagem</button>${img.uploadedKind==='print'&&img.uploadedAt?'<p class="state approved">Imagem pronta para publicar</p>':''}</div>`;
   if(img.kind==="photo"){
     const photos=PS.photos[id];
     return `<div class="img-box"><div class="rewrite"><input id="photo-query" value="${escapeHtml(img.photoQuery||"")}" placeholder="Palavras em inglês, ex.: office spreadsheet"><button class="button button-secondary" data-post-action="photos" data-id="${id}">Buscar fotos</button></div>
@@ -118,9 +124,13 @@ function imageBodyHtml(p){
       ${img.chosen?`<figure class="chosen-photo"><img src="${escapeHtml(img.chosen.thumb||img.chosen.large)}" alt=""><figcaption>Foto de ${escapeHtml(img.chosen.author)} no ${escapeHtml(img.chosen.provider||"banco de imagens")} · <a href="${escapeHtml(img.chosen.large)}" target="_blank" rel="noopener noreferrer">abrir para baixar</a></figcaption></figure>`:""}
       ${photos?.length?`<div class="photo-grid">${photos.map(ph=>`<button class="photo${img.chosen?.id===ph.id?" active":""}" data-pick-photo="${ph.id}" data-id="${id}" title="${escapeHtml(ph.alt)}"><img src="${escapeHtml(ph.thumb)}" alt="${escapeHtml(ph.alt)}" loading="lazy"></button>`).join("")}</div>`:""}</div>`;
   }
-  return `<div class="img-box card-editor"><div class="form-grid"><label class="full">Título do card<input id="card-title" maxlength="90" value="${escapeHtml(img.cardTitle||"")}"></label>${[0,1,2].map(i=>`<label class="full">Tópico ${i+1}<input class="card-line" data-i="${i}" maxlength="80" value="${escapeHtml(img.cardLines?.[i]||"")}"></label>`).join("")}</div>
+  const source=String(p.text||'').split(/\n+/).map(s=>s.trim()).filter(s=>s&&!s.startsWith('#'));
+  const title=img.cardTitle||p.hook||source[0]||'Uma ideia para compartilhar';
+  const lines=(img.cardLines||[]).filter(Boolean);if(!lines.length)lines.push(...source.filter(s=>s!==title).slice(0,3).map(s=>s.slice(0,80)));
+  const style=cardStyle(p);
+  return `<div class="img-box card-editor"><p class="muted small">Escolha um visual e ajuste as frases para que o card explique a ideia do post por si só.</p><div class="segmented img-kinds" role="group" aria-label="Estilo do card">${[['contrast','Destaque'],['editorial','Editorial'],['minimal','Citação']].map(([k,l])=>`<button class="seg${style===k?' active':''}" data-card-style="${k}" data-id="${id}">${l}</button>`).join('')}</div><div class="form-grid"><label class="full">Ideia principal<input id="card-title" maxlength="90" value="${escapeHtml(title)}"></label>${[0,1,2].map(i=>`<label class="full">Ponto ${i+1}<input class="card-line" data-i="${i}" maxlength="80" value="${escapeHtml(lines[i]||"")}"></label>`).join("")}</div>
     <canvas id="card-canvas" width="1200" height="1200" aria-label="Prévia do card"></canvas>
-    <div class="row-actions"><button class="button button-secondary" data-post-action="download-card" data-id="${id}">Baixar card (PNG)</button><button class="button button-ghost" data-post-action="save-card" data-id="${id}">Salvar card</button></div></div>`;
+    <div class="row-actions"><button class="button button-secondary" data-post-action="download-card" data-id="${id}">Baixar card (PNG)</button><button class="button button-ghost" data-post-action="save-card" data-id="${id}">Salvar card</button></div>${img.uploadedKind==='card'&&img.uploadedAt?'<p class="state approved">Card pronto para publicar</p>':''}</div>`;
 }
 function interviewHtml(){
   const qs=PS.questions.interview;
@@ -149,25 +159,53 @@ function micButton(target){return `<button type="button" class="mic" data-mic-fo
 // ---------- Card (imagem gerada no navegador, sem custo) ----------
 function wrapLines(ctx,text,maxW){const words=String(text||"").split(/\s+/);const out=[];let line="";for(const w of words){const t=line?`${line} ${w}`:w;if(ctx.measureText(t).width>maxW&&line){out.push(line);line=w}else line=t}if(line)out.push(line);return out}
 function drawCardPreview(){
-  const c=document.querySelector("#card-canvas");if(!c)return;const ctx=c.getContext("2d");
-  const title=document.querySelector("#card-title")?.value||"";const lines=[...document.querySelectorAll(".card-line")].map(i=>i.value.trim()).filter(Boolean);
-  const p=currentProfile()||{};const name=p.name||"";const sub=(PS.email?.senderTitle)||"";
-  ctx.fillStyle="#112926";ctx.fillRect(0,0,1200,1200);
-  ctx.fillStyle="#1b3833";ctx.beginPath();ctx.arc(1080,120,260,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle="#d7f35a";ctx.fillRect(90,110,120,14);
-  ctx.fillStyle="#ffffff";ctx.font='700 76px "Space Grotesk", "DM Sans", Arial, sans-serif';
-  let y=230;for(const l of wrapLines(ctx,title,1000).slice(0,5)){ctx.fillText(l,90,y);y+=90}
-  y+=40;ctx.font='500 42px "DM Sans", Arial, sans-serif';
-  for(const l of lines){ctx.fillStyle="#d7f35a";ctx.fillRect(90,y-26,18,18);ctx.fillStyle="#e6efe9";for(const [i,part] of wrapLines(ctx,l,960).slice(0,2).entries()){ctx.fillText(part,136,y+i*54)}y+=Math.min(2,wrapLines(ctx,l,960).length)*54+34}
-  ctx.fillStyle="#24443d";ctx.fillRect(90,1040,1020,2);
-  ctx.fillStyle="#ffffff";ctx.font='600 36px "DM Sans", Arial, sans-serif';ctx.fillText(name,90,1105);
-  if(sub){ctx.fillStyle="#9fb6ad";ctx.font='400 30px "DM Sans", Arial, sans-serif';ctx.fillText(sub,90,1148)}
+  const scope=postRoot()||document;const c=scope.querySelector("#card-canvas");if(!c)return;const ctx=c.getContext("2d");
+  const title=scope.querySelector("#card-title")?.value.trim()||"";const lines=[...scope.querySelectorAll(".card-line")].map(i=>i.value.trim()).filter(Boolean).slice(0,3);
+  const post=PS.items.find(x=>x.id===PS.selectedId)||{};const style=cardStyle(post);
+  const p=currentProfile()||{};const name=p.name||'Radar';const sub=(PS.email?.senderTitle)||'';
+  const label={prova:'PROJETO REAL',dica:'IDEIA PRÁTICA',historia:'MINHA TRAJETÓRIA',opiniao:'PONTO DE VISTA',chamada:'VAMOS CONVERSAR'}[post.pillar]||'RADAR';
+  const titleFont='700 65px "Space Grotesk", Arial, sans-serif';
+  const drawTitle=(x,y,width,color)=>{ctx.font=titleFont;ctx.fillStyle=color;const parts=wrapLines(ctx,title,width).slice(0,4);parts.forEach((line,i)=>ctx.fillText(line,x,y+i*76,width));return y+parts.length*76};
+  ctx.clearRect(0,0,1200,1200);
+  if(style==='editorial'){
+    ctx.fillStyle='#f5f3e9';ctx.fillRect(0,0,1200,1200);ctx.fillStyle='#d7f35a';ctx.fillRect(0,0,42,1200);
+    ctx.fillStyle='#235143';ctx.font='700 34px Arial';ctx.fillText(label,100,130);ctx.fillStyle='#235143';ctx.fillRect(100,160,1000,3);
+    let y=drawTitle(100,270,980,'#112926')+25;
+    ctx.font='500 39px Arial';for(const [i,line] of lines.entries()){ctx.fillStyle='#6b8f7b';ctx.font='700 35px Arial';ctx.fillText(String(i+1).padStart(2,'0'),100,y);ctx.fillStyle='#203c34';ctx.font='500 39px Arial';const parts=wrapLines(ctx,line,890).slice(0,2);parts.forEach((part,j)=>ctx.fillText(part,180,y+j*48,890));y+=Math.max(1,parts.length)*48+28}
+    ctx.fillStyle='#c8d6ca';ctx.fillRect(100,1045,1000,2);ctx.fillStyle='#235143';ctx.font='600 32px Arial';ctx.fillText(name,100,1110,950);
+  }else if(style==='minimal'){
+    ctx.fillStyle='#e6ede6';ctx.fillRect(0,0,1200,1200);ctx.fillStyle='#173e34';ctx.fillRect(78,78,1044,1044);ctx.fillStyle='#d7f35a';ctx.font='700 150px Georgia, serif';ctx.fillText('“',135,270);
+    ctx.fillStyle='#b9cfc1';ctx.font='700 30px Arial';ctx.fillText(label,170,270);
+    let y=drawTitle(170,375,850,'#ffffff')+25;
+    ctx.fillStyle='#d8e4da';ctx.font='500 39px Arial';for(const line of lines){const parts=wrapLines(ctx,line,830).slice(0,2);parts.forEach((part,j)=>ctx.fillText(part,170,y+j*48,830));y+=Math.max(1,parts.length)*48+22}
+    ctx.fillStyle='#d7f35a';ctx.fillRect(170,1025,95,8);ctx.fillStyle='#ffffff';ctx.font='600 30px Arial';ctx.fillText(name,170,1080,830);
+  }else{
+    ctx.fillStyle='#112926';ctx.fillRect(0,0,1200,1200);ctx.fillStyle='#21443a';ctx.beginPath();ctx.arc(1090,95,300,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#d7f35a';ctx.fillRect(90,100,136,12);ctx.fillStyle='#b6d4c2';ctx.font='700 32px Arial';ctx.fillText(label,90,165);
+    let y=drawTitle(90,290,1000,'#ffffff')+30;
+    ctx.fillStyle='#1e3c34';ctx.fillRect(75,y-54,1050,Math.max(0,Math.min(975-y,lines.length*85+95)));
+    ctx.font='500 39px Arial';for(const line of lines){ctx.fillStyle='#d7f35a';ctx.fillRect(110,y-27,15,15);ctx.fillStyle='#e6efe9';const parts=wrapLines(ctx,line,920).slice(0,2);parts.forEach((part,j)=>ctx.fillText(part,155,y+j*48,920));y+=Math.max(1,parts.length)*48+28}
+    ctx.fillStyle='#447062';ctx.fillRect(90,1040,1020,2);ctx.fillStyle='#ffffff';ctx.font='600 32px Arial';ctx.fillText(name,90,1100,900);
+    if(sub){ctx.fillStyle='#9fb6ad';ctx.font='400 25px Arial';ctx.fillText(sub,90,1140,900)}
+  }
 }
 
 // ---------- Ações ----------
 function setPostsStatus(msg,kind=""){const el=document.querySelector("#posts-status");if(!el)return;el.hidden=!msg;el.textContent=msg||"";el.className=`notice ${kind}`}
 function replacePost(p){const i=PS.items.findIndex(x=>x.id===p.id);if(i>=0)PS.items[i]=p;else PS.items.push(p)}
 async function savePost(id,body,msg){try{const r=await papi(`/api/posts/${id}`,{method:"POST",body});replacePost(r.post);if(msg)showToast(msg);return r.post}catch(e){showToast(e.message)}}
+async function uploadPostImage(id,blob){
+  if(!blob)throw Error('Escolha uma imagem PNG ou JPEG.');
+  const response=await fetch(`/api/posts/${encodeURIComponent(id)}/image`,{method:'POST',headers:{'Content-Type':blob.type||'application/octet-stream'},body:blob});
+  const data=await response.json();if(!response.ok)throw Error(data.error||'Não consegui guardar a imagem.');replacePost(data.post);return data.post;
+}
+async function saveCardAndImage(id,root){
+  const p=await savePost(id,{image:{cardTitle:root.querySelector('#card-title').value,cardLines:[...root.querySelectorAll('.card-line')].map(i=>i.value)}});
+  if(!p)throw Error('Não consegui salvar o card.');
+  drawCardPreview();const canvas=root.querySelector('#card-canvas');
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+  return uploadPostImage(id,blob);
+}
 function afterChange(){renderPosts();if(typeof render==="function")render()}
 function selectPost(id){
   PS.selectedId=id;
@@ -176,11 +214,36 @@ function selectPost(id){
 }
 function postRoot(){return document.querySelector("#modal-backdrop:not(.hidden) #modal-content")||document.querySelector("#post-detail")}
 function refreshDetail(){const p=PS.items.find(x=>x.id===PS.selectedId);const modal=document.querySelector("#modal-backdrop:not(.hidden) #modal-content #post-text");if(modal&&p){$("#modal-content").innerHTML=postDetailHtml(p);drawCardPreview()}afterChange()}
+let planPolling=false;
+async function followPlan(){
+  if(planPolling)return;planPolling=true;PS.busy='plan';renderPosts();
+  let failures=0;
+  try{for(;;){
+    await new Promise(resolve=>setTimeout(resolve,2500));
+    try{
+      const [s,d]=await Promise.all([papi('/api/posts/plan-status'),papi('/api/posts')]);failures=0;
+      PS.items=d.items||PS.items;PS.tab='review';if(!PS.selectedId)PS.selectedId=PS.items.find(p=>p.status==='draft')?.id||null;
+      if(s.status!=='running'){PS.busy='';afterChange();const n=s.created||0,u=s.updated||0;setPostsStatus(s.status==='error'?`A geração parou: ${(s.errors||[]).join(' · ')}`:`Pronto: ${n} ${n===1?'post criado':'posts criados'} e ${u} ${u===1?'imagem adicionada':'imagens adicionadas'}.${s.errors?.length?` Confira: ${s.errors.join(' · ')}`:''}`,s.errors?.length?'warn':'');break}
+      renderPosts();setPostsStatus(`Preparando posts e fotos do Pixabay: ${s.created||0} ${s.created===1?'post pronto':'posts prontos'}, ${s.updated||0} imagens adicionadas. Você pode deixar esta página aberta.`);
+    }catch(e){if(++failures>=4){PS.busy='';renderPosts();setPostsStatus(`Não consegui atualizar o progresso: ${e.message}. Os posts já salvos continuam no Radar.`,'warn');break}}
+  }}finally{planPolling=false}
+}
+document.querySelector('#voice-form [name=postsPerWeek]')?.addEventListener('change',e=>renderSequence({...PS.voice,postsPerWeek:Number(e.target.value)},true));
 async function planPosts(){
+ if(!PS.ai.configured){showToast('Conecte a IA em Meu perfil primeiro.');return}
+ const n=Number(PS.voice.postsPerWeek)||3,seq=PS.voice.sequence?.length?PS.voice.sequence:['dica','emprego','prova'];
+ $('#modal-content').innerHTML=`<h2>Organizar os próximos posts</h2><p class="muted">Escolha o tema de cada publicação. A orientação é opcional: sem ela, a IA usa seu currículo e sua entrevista.</p><form id="batch-topics" class="form-grid">${Array.from({length:n},(_,i)=>`<fieldset class="full batch-post"><legend>Post ${i+1}</legend><label>Tema<select name="topic">${topicOptions(seq[i%seq.length])}</select></label><label data-story-choice>História ou projeto (opcional)<select name="story"><option value="">Escolher automaticamente</option>${PS.stories.filter(s=>!s.archived).map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.title)}</option>`).join('')}</select></label><label class="batch-direction">Orientação (opcional)<div class="mic-field"><textarea id="batch-direction-${i}" name="direction" rows="2" maxlength="1500" placeholder="Digite ou fale como deseja este post. Pode deixar em branco."></textarea>${micButton(`batch-direction-${i}`)}</div></label></fieldset>`).join('')}<button class="button" type="submit">Gerar estes posts</button></form>`;
+ $('#modal-backdrop').classList.remove('hidden');document.body.classList.add('modal-open');
+ const batchForm=document.querySelector('#batch-topics');
+ const updateStoryChoice=el=>{const relevant=['prova','historia'].includes(el.querySelector('[name=topic]').value);el.querySelector('[data-story-choice]').hidden=!relevant;el.querySelector('[name=story]').disabled=!relevant;if(!relevant)el.querySelector('[name=story]').value=''};
+ batchForm.querySelectorAll('fieldset').forEach(updateStoryChoice);
+ batchForm.addEventListener('change',e=>{if(e.target.name==='topic')updateStoryChoice(e.target.closest('fieldset'))});
+ document.querySelector('#batch-topics').addEventListener('submit',e=>{e.preventDefault();const topics=[...e.target.querySelectorAll('fieldset')].map(el=>({pillar:el.querySelector('[name=topic]').value,storyId:el.querySelector('[name=story]').value,instruction:el.querySelector('[name=direction]').value}));closeModal();generateBatch(topics)});
+}
+async function generateBatch(topics){
   if(!PS.ai.configured){showToast("Conecte a IA em Meu perfil primeiro.");return}
-  PS.busy="plan";renderPosts();setPostsStatus("A IA está escrevendo os posts da semana. Leva de 30 segundos a 2 minutos…");
-  try{const r=await papi("/api/posts/plan",{method:"POST",body:{profile:currentProfile()}});PS.items=r.items||PS.items;PS.busy="";PS.tab="review";PS.selectedId=r.created?.[0]?.id||null;afterChange();
-    setPostsStatus(r.note||`${r.created.length} ${r.created.length===1?"post escrito":"posts escritos"}.${r.errors?.length?` Problemas: ${r.errors.join(" · ")}`:""}`,r.errors?.length?"warn":"")}
+  PS.busy="plan";renderPosts();setPostsStatus("A IA está preparando os posts e escolhendo fotos no Pixabay…");
+  try{await papi("/api/posts/plan",{method:"POST",body:{profile:currentProfile(),topics,count:topics.length}});followPlan()}
   catch(e){PS.busy="";renderPosts();setPostsStatus(e.message,"warn")}
 }
 document.addEventListener("click",async e=>{
@@ -190,12 +253,24 @@ document.addEventListener("click",async e=>{
   const mic=e.target.closest("[data-mic-for]");if(mic){toggleMic(mic);return}
   const arch=e.target.closest("[data-story-archive]");if(arch){try{await papi(`/api/posts/stories/${arch.dataset.storyArchive}`,{method:"POST",body:{archived:true}});const s=PS.stories.find(x=>x.id===arch.dataset.storyArchive);if(s)s.archived=true;renderPosts();showToast("História arquivada.")}catch(err){showToast(err.message)}return}
   const kind=e.target.closest("[data-img-kind]");if(kind){const p=await savePost(kind.dataset.id,{image:{kind:kind.dataset.imgKind}});if(p)refreshDetail();return}
+  const style=e.target.closest('[data-card-style]');if(style){const root=postRoot();const p=await savePost(style.dataset.id,{image:{style:style.dataset.cardStyle,cardTitle:root.querySelector('#card-title')?.value||'',cardLines:[...root.querySelectorAll('.card-line')].map(i=>i.value)}});if(p)refreshDetail();return}
   const pick=e.target.closest("[data-pick-photo]");if(pick){const id=pick.dataset.id;const ph=(PS.photos[id]||[]).find(x=>String(x.id)===pick.dataset.pickPhoto);if(ph){const p=await savePost(id,{image:{chosen:ph}},"Foto escolhida.");if(p)refreshDetail()}return}
   const quick=e.target.closest("[data-rewrite-quick]");if(quick){const inp=postRoot()?.querySelector("#rewrite-note");if(inp)inp.value=quick.dataset.rewriteQuick;return rewrite(quick.dataset.id)}
   const scroll=e.target.closest("[data-scroll]");if(scroll)setTimeout(()=>document.getElementById(scroll.dataset.scroll)?.scrollIntoView({behavior:"smooth",block:"start"}),60);
   const b=e.target.closest("[data-post-action]");if(!b)return;
   const a=b.dataset.postAction,id=b.dataset.id;const root=postRoot();
-  if(a==="approve"){const when=root.querySelector("#post-when")?.value;await savePost(id,{text:root.querySelector("#post-text").value,status:"approved",...(when?{scheduledFor:new Date(when).toISOString()}:{})},PS.email.configured?"Aprovado. Na hora marcada o post chega no seu e-mail.":"Aprovado e agendado.");refreshDetail()}
+  if(a==="approve"){
+    try{
+      const post=PS.items.find(x=>x.id===id);const img=post?.image||{};
+      if(PS.linkedin?.connected){
+        if(img.kind==='card')await saveCardAndImage(id,root);
+        if(img.kind==='print'&&!(img.uploadedKind==='print'&&img.uploadedAt))throw Error('Guarde seu print ou foto antes de aprovar para publicação automática.');
+        if(img.kind==='photo'&&!img.chosen?.large)throw Error('Escolha uma foto antes de aprovar para publicação automática.');
+      }
+      const when=root.querySelector("#post-when")?.value;
+      await savePost(id,{text:root.querySelector("#post-text").value,status:"approved",...(when?{scheduledFor:new Date(when).toISOString()}:{})},PS.linkedin?.autoPublish?'Aprovado. Será publicado no horário escolhido.':PS.email.configured?"Aprovado. Na hora marcada o post chega no seu e-mail.":"Aprovado e agendado.");refreshDetail();
+    }catch(err){showToast(err.message)}
+  }
   if(a==="unapprove"){await savePost(id,{status:"draft"});refreshDetail()}
   if(a==="published"){await savePost(id,{status:"published"},"Marcado como publicado.");closeModal();afterChange()}
   if(a==="skip"){if(!confirm("Descartar este post?"))return;await savePost(id,{status:"skipped"},"Post descartado.");closeModal();afterChange()}
@@ -203,7 +278,13 @@ document.addEventListener("click",async e=>{
   if(a==="copy"){navigator.clipboard?.writeText(root.querySelector("#post-text").value).then(()=>showToast("Texto copiado."),()=>showToast("Selecione e copie manualmente."))}
   if(a==="rewrite")rewrite(id);
   if(a==="photos"){const q=root.querySelector("#photo-query").value.trim();b.textContent="Buscando…";try{const r=await papi(`/api/posts/${id}/photos?q=${encodeURIComponent(q)}`);PS.photos[id]=r.photos;await savePost(id,{image:{photoQuery:q}});refreshDetail();if(!r.photos.length)showToast("Nenhuma foto encontrada. Tente outras palavras em inglês.")}catch(err){b.textContent="Buscar fotos";showToast(err.message)}}
-  if(a==="save-card"){await savePost(id,{image:{cardTitle:root.querySelector("#card-title").value,cardLines:[...root.querySelectorAll(".card-line")].map(i=>i.value)}},"Card salvo.")}
+  if(a==="save-card"){try{await saveCardAndImage(id,root);showToast('Card salvo e pronto para publicação.');refreshDetail()}catch(err){showToast(err.message)}}
+  if(a==="upload-image"){try{await uploadPostImage(id,root.querySelector('#post-image-file')?.files?.[0]);showToast('Imagem guardada para publicação.');refreshDetail()}catch(err){showToast(err.message)}}
+  if(a==="publish-now"){
+    const post=PS.items.find(x=>x.id===id);if(post?.linkedinAttemptedAt&&!confirm('Já houve uma tentativa de envio. Confira seu LinkedIn antes de tentar novamente para evitar um post duplicado. Continuar?'))return;
+    try{b.disabled=true;b.textContent='Publicando…';if(post?.image?.kind==='card'&&!(post.image.uploadedKind==='card'&&post.image.uploadedAt))await saveCardAndImage(id,root);const r=await papi(`/api/posts/${id}/publish-now`,{method:'POST',body:{retry:!!post?.linkedinAttemptedAt}});replacePost(r.post);showToast('Post publicado no LinkedIn.');PS.tab='published';refreshDetail()}
+    catch(err){showToast(err.message);const updated=await papi('/api/posts').catch(()=>null);if(updated?.items){PS.items=updated.items;refreshDetail()}else{b.disabled=false;b.textContent='Publicar agora pela conexão'}}
+  }
   if(a==="download-card"){drawCardPreview();const c=root.querySelector("#card-canvas");const link=document.createElement("a");link.download=`card-${id}.png`;link.href=c.toDataURL("image/png");link.click()}
 });
 async function rewrite(id){
@@ -293,10 +374,13 @@ document.addEventListener("click",async e=>{const u=e.target.closest("[data-use-
 
 // ---------- Meu perfil › Voz e publicações ----------
 // "length" colide com form.elements.length; no formulário o campo se chama postLength.
-const VOICE_FIELDS=["goal","language","audience","postsPerWeek","time","tone","depth","length","emojis","hashtags","callEvery","cta","avoid","examples"];
+const VOICE_FIELDS=["goal","language","audience","postsPerWeek","time","tone","depth","length","emojis","hashtags","callEvery","cta","avoid","examples","editorialGuidance"];
 const fieldName=k=>k==="length"?"postLength":k;
+const TOPIC_OPTIONS=[['dica','Informação e dica prática'],['emprego','Busca de emprego'],['prova','Projeto e demonstração'],['historia','Carreira e aprendizado'],['opiniao','Opinião sobre a área'],['clientes','Oferta de serviços']];
+function topicOptions(value){return TOPIC_OPTIONS.map(([k,label])=>`<option value="${k}" ${k===value?'selected':''}>${label}</option>`).join('')}
+function renderSequence(v,preserve=false){const el=document.querySelector('#post-sequence');if(!el)return;const old=preserve?[...el.querySelectorAll('select')].map(x=>x.value):[];const seq=v.sequence?.length?v.sequence:['dica','emprego','prova'];el.innerHTML=Array.from({length:Number(v.postsPerWeek)||3},(_,i)=>`<label>Post ${i+1}<select name="postSequence">${topicOptions(old[i]||seq[i%seq.length])}</select></label>`).join('')}
 function renderVoicePanel(){
-  const f=document.querySelector("#voice-form");if(!f||!PS.loaded)return;const v=PS.voice||{};
+  const f=document.querySelector("#voice-form");if(!f||!PS.loaded)return;const v=PS.voice||{};renderSequence(v);
   for(const k of VOICE_FIELDS)if(f.elements[fieldName(k)]&&document.activeElement!==f.elements[fieldName(k)])f.elements[fieldName(k)].value=v[k]??"";
   f.querySelectorAll("[name=days]").forEach(i=>i.checked=(v.days||[]).includes(i.value));
   f.querySelectorAll("[name=pillars]").forEach(i=>i.checked=(v.pillars||[]).includes(i.value));
@@ -308,10 +392,12 @@ document.querySelector("#voice-form")?.addEventListener("submit",async e=>{
   d.days=[...f.querySelectorAll("[name=days]:checked")].map(i=>i.value);d.pillars=[...f.querySelectorAll("[name=pillars]:checked")].map(i=>i.value);
   for(const k of ["autoPlan","autoApprove","remindEmail"])d[k]=f.elements[k].checked;
   if(!d.days.length){showToast("Escolha pelo menos um dia.");return}
-  d.updatedAt=new Date().toISOString();
+  d.sequence=[...f.querySelectorAll("[name=postSequence]")].map(x=>x.value);
+ d.updatedAt=new Date().toISOString();
   try{const r=await papi("/api/posts/voice",{method:"POST",body:d});PS.voice={...r.voice,updatedAt:d.updatedAt};renderPosts();document.querySelector("#voice-saved").textContent="Salvo. Vale para os próximos posts.";showToast("Voz e publicações salvas.")}
   catch(err){showToast(err.message)}
 });
 function routeHash(){const h=location.hash.replace("#","");if(h==="content"||h==="checkin"){setView("content");if(h==="checkin")PS.tab="checkin";renderPosts()}}
 window.addEventListener("hashchange",routeHash);
 loadPosts().then(routeHash);
+

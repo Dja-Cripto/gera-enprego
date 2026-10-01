@@ -15,3 +15,8 @@ diagnostico-servidor.txt
 # Usuário, senha (hash) e sessões de acesso
 .radar-auth.json
 .radar-auth.json.tmp
+.radar-linkedin-key
+deploy/data/
+
+# Resultado da atualização automática
+atualizar-servidor.txt

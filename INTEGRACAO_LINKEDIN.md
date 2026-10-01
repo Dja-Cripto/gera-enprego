@@ -16,19 +16,22 @@
 - O fluxo público de OpenID Connect não dá acesso a todo o histórico profissional, experiências ou cursos do perfil do LinkedIn. O currículo mestre continua sendo mantido pelo usuário no Radar.
 - Leitura de posts e interações do membro exige permissões diferentes e restritas; não deve ser prometida nesta fase.
 
-## Implementação necessária
+## Configuração do aplicativo
 
-- Criar um aplicativo no LinkedIn Developer Portal e habilitar os produtos **Sign in with LinkedIn using OpenID Connect** e **Share on LinkedIn**.
-- Registrar uma URL HTTPS de retorno do servidor. O protótipo estático em `localhost` ainda não dispõe dessa URL nem de um servidor de aplicação.
-- Implementar OAuth 2.0 Authorization Code Flow no servidor: iniciar conexão, gerar e validar `state`, receber o `code` e trocá-lo por token. Nunca colocar o `client_secret` no JavaScript ou no navegador.
-- Associar cada token à conta correta no banco, com criptografia em repouso, controle de acesso, expiração e possibilidade de desconexão. Não usar `localStorage` para tokens.
-- Conferir escopos efetivamente concedidos e falhas de autorização antes de habilitar agendamento/publicação.
-- Usar a API oficial de posts; registrar resposta, identificador da publicação, falhas e necessidade de reconexão.
-- Manter aprovação humana por post. Conectar a conta não significa autorizar publicações sem revisão.
+- Criar um aplicativo em https://www.linkedin.com/developers/apps chamado Radar e associar uma Página do LinkedIn aceita pelo portal.
+- Landing page: `https://radar.setupdja.website/`.
+- Privacy policy URL: `https://radar.setupdja.website/privacidade.html`.
+- Adicionar um logo quadrado de pelo menos 100 px, no formato aceito pelo portal.
+- Em **Auth**, cadastrar exatamente `https://app-radar.setupdja.website/api/linkedin/callback` como URL de retorno.
+- Em **Products**, ativar **Sign In with LinkedIn using OpenID Connect** e **Share on LinkedIn**.
+- Copiar Client ID e Client Secret para **Meu perfil → LinkedIn** no Radar. Nunca enviar o segredo por mensagem.
+- Clicar em **Conectar LinkedIn** e conceder as permissões no site do LinkedIn.
 
 ## Estado do protótipo
 
-A tela de conexão está desenhada, mas o botão permanece desabilitado até existir o aplicativo de desenvolvedor e o servidor seguro. O campo de URL pública do perfil é apenas uma referência; ele não vincula a conta.
+O fluxo de conexão, armazenamento criptografado do token e publicação com imagem estão implementados no servidor. O botão de conexão é habilitado após cadastrar o aplicativo. A publicação automática considera apenas posts aprovados pessoalmente; alterar texto, imagem ou horário exige nova aprovação. Os testes locais usam respostas simuladas. O teste real de autorização e postagem depende da criação do aplicativo LinkedIn e da ativação dos produtos.
+
+Esta versão é para um único usuário. Para vender o produto a outras pessoas, será necessário separar as contas, credenciais e tokens por usuário.
 
 ## Fontes oficiais
 

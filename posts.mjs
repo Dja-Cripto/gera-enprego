@@ -32,7 +32,7 @@ export const PILLARS=[
   {key:'chamada',label:'Chamada',desc:'Diz o que você busca: vaga ou clientes. A cada 2 semanas.',weight:0},
 ];
 const pillarByKey=k=>PILLARS.find(p=>p.key===k)||PILLARS[0];
-export const DEFAULT_VOICE={goal:'ambos',market:'brasil',language:'pt',audience:'Recrutadores de tecnologia e dados; donos de pequenas empresas em Feira de Santana',postsPerWeek:3,days:['2','3','4'],time:'08:30',pillars:['prova','dica','historia','opiniao'],callEvery:2,tone:'proximo',depth:'simples',length:'medio',emojis:'poucos',hashtags:3,avoid:'',examples:'',cta:'',autoPlan:true,autoApprove:false,remindEmail:true,imagePreference:'auto'};
+export const DEFAULT_VOICE={goal:'ambos',market:'brasil',language:'pt',audience:'Recrutadores de tecnologia e dados; donos de pequenas empresas em Feira de Santana',postsPerWeek:3,sequence:['dica','emprego','prova'],editorialGuidance:'',days:['2','3','4'],time:'08:30',pillars:['prova','dica','historia','opiniao'],callEvery:2,tone:'proximo',depth:'simples',length:'medio',emojis:'poucos',hashtags:3,avoid:'',examples:'',cta:'',autoPlan:true,autoApprove:false,remindEmail:true,imagePreference:'auto'};
 export const DAY_NAMES=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 
 // ---------- Cliente de IA (OpenCode Go ou qualquer serviço compatível) ----------
@@ -124,7 +124,9 @@ function voiceBrief(v,profile){
     `Objetivo dos posts: ${goal}. Público: ${v.audience||'profissionais da área'}.`,
     `Idioma: ${lang}. Tom: ${tone}. Profundidade: ${v.depth==='tecnico'?'pode usar termos técnicos':'explique sem jargão'}. Tamanho: ${len}.`,
     `Emojis: ${v.emojis==='nenhum'?'não use':v.emojis==='alguns'?'até 3, com propósito':'no máximo 1'}. Hashtags: exatamente ${Number(v.hashtags)||0}, no fim.`,
-    'Estrutura: primeira linha curta que prende a atenção (sem clickbait), parágrafos de 1 a 3 linhas, uma pergunta ou convite no fim.',
+    'Preserve época, situação e resultado. Projeto antigo deve ser narrado no passado. Nunca anuncie novidade ou lançamento sem confirmação. Orgulho de concluir não significa sucesso comercial. Preserve fracassos, encerramentos e ressalvas. Se a época for desconhecida, evite hoje, recentemente e acabei de.',
+ v.editorialGuidance?`Orientações editoriais: ${v.editorialGuidance}`:'',
+ 'Estrutura: primeira linha curta que prende a atenção (sem clickbait), parágrafos de 1 a 3 linhas, uma pergunta ou convite no fim.',
     'REGRAS OBRIGATÓRIAS: use apenas os fatos fornecidos; não invente números, empresas, clientes, cargos, datas ou resultados. Se faltar um dado, escreva de forma que não precise dele. Nada de frases feitas de coach, nada de "no mundo de hoje", nada de listas de 10 itens.',
     v.avoid?`Nunca fale de: ${v.avoid}.`:'',
     v.cta?`Quando o post for uma chamada, use esta ideia: ${v.cta}.`:'',
@@ -136,7 +138,7 @@ export async function buildStoryBank(cfg,{profile,interview,diary}){
   const answers=INTERVIEW.map(q=>interview?.[q.key]?`P: ${q.q}\nR: ${interview[q.key]}`:'').filter(Boolean).join('\n\n');
   const recent=(diary||[]).slice(-6).map(d=>`Semana de ${d.weekOf}: ${CHECKIN.map(q=>d.answers?.[q.key]?`${q.q} ${d.answers[q.key]}`:'').filter(Boolean).join(' | ')}`).join('\n');
   const system='Você é um editor de conteúdo profissional. Extrai histórias verdadeiras de materiais brutos para virar posts de LinkedIn. Responda somente JSON válido.';
-  const user=`Material da pessoa:\n\n[CURRÍCULO]\n${profileFacts(profile)||'(vazio)'}\n\n[ENTREVISTA]\n${answers||'(sem respostas ainda)'}\n\n[CHECK-INS]\n${recent||'(nenhum)'}\n\nExtraia de 10 a 20 histórias distintas que rendem um post cada. Para cada uma devolva:\n{"title":"título curto","pillar":"prova|dica|historia|opiniao","facts":["fato 1 exatamente como está no material","fato 2"],"angle":"o ângulo do post em uma frase","source":"curriculo|entrevista|checkin"}\nUse somente fatos presentes no material. Responda: {"stories":[...]}`;
+  const user=`Material da pessoa:\n\n[CURRÍCULO]\n${profileFacts(profile)||'(vazio)'}\n\n[ENTREVISTA]\n${answers||'(sem respostas ainda)'}\n\n[CHECK-INS]\n${recent||'(nenhum)'}\n\nExtraia de 10 a 20 histórias distintas que rendem um post cada. Para cada uma devolva:\n{"title":"título curto","pillar":"prova|dica|historia|opiniao","facts":["fato 1 exatamente como está no material","fato 2"],"angle":"o ângulo do post em uma frase","source":"curriculo|entrevista|checkin"}\nInclua nos facts época, situação e resultado, inclusive negativos. Preserve projetos antigos, fracassos e encerramentos. Use somente fatos presentes no material. Responda: {"stories":[...]}`;
   const r=await aiChat(cfg,{system,user,model:cfg.fastModel,maxTokens:12000,temperature:0.4,session:'radar-historias'});
   const data=parseJson(r.text);
   return (data.stories||data||[]).filter(s=>s&&s.title&&Array.isArray(s.facts)&&s.facts.length).slice(0,25).map(s=>({id:`st-${hash(s.title+s.facts.join('|'))}`,title:String(s.title).slice(0,120),pillar:PILLARS.some(p=>p.key===s.pillar)?s.pillar:'historia',facts:s.facts.map(f=>String(f).slice(0,400)).slice(0,6),angle:String(s.angle||'').slice(0,300),source:String(s.source||'entrevista'),used:0,createdAt:new Date().toISOString()}));
@@ -148,7 +150,7 @@ export function nextSlots(voice,taken,count,from=new Date()){
   const days=(voice.days?.length?voice.days:DEFAULT_VOICE.days).map(Number);
   const [hh,mm]=String(voice.time||'08:30').split(':').map(Number);
   const out=[];const takenDays=new Set((taken||[]).map(t=>bahiaParts(new Date(t)).date));
-  for(let i=1;i<=21&&out.length<count;i++){
+  for(let i=1;i<=(takenDays.size+count+1)*7&&out.length<count;i++){
     const d=new Date(from.getTime()+i*86400000);const p=bahiaParts(d);
     if(!days.includes(p.dow)||takenDays.has(p.date))continue;
     // Bahia = UTC-3 o ano todo.
@@ -156,7 +158,8 @@ export function nextSlots(voice,taken,count,from=new Date()){
   }
   return out;
 }
-function choosePillars(voice,n,lastCallAt){
+export function choosePillars(voice,n,lastCallAt){
+ const seq=(voice.sequence||[]).filter(k=>['emprego','clientes',...PILLARS.map(p=>p.key)].includes(k));if(seq.length)return Array.from({length:n},(_,i)=>seq[i%seq.length]);
   const allowed=PILLARS.filter(p=>p.key!=='chamada'&&(voice.pillars||[]).includes(p.key));
   const pool=(allowed.length?allowed:PILLARS.filter(p=>p.weight)).flatMap(p=>Array(Math.max(1,p.weight)).fill(p.key));
   const out=[];let i=Math.floor(Math.random()*pool.length);
@@ -167,9 +170,11 @@ function choosePillars(voice,n,lastCallAt){
 }
 
 // ---------- Escrita ----------
-export async function writePost(cfg,{voice,profile,pillar,story,diaryEntry,signals,language,instruction,previous,model}){
+export async function writePost(cfg,{voice,profile,pillar,story,diaryEntry,signals,language,instruction,previous,model,interview,requestOnly=false,generated}){
   const p=pillarByKey(pillar);
   const material=[];
+ if(interview)material.push(`ENTREVISTA ORIGINAL (prevalece sobre resumos; preserve negativas, datas e ressalvas): ${JSON.stringify(interview).slice(0,24000)}`);
+ if(instruction)material.push(`ORIENTAÇÃO DESTE POST: ${instruction}`);
   if(story)material.push(`HISTÓRIA ESCOLHIDA: ${story.title}\nÂngulo: ${story.angle}\nFatos:\n- ${story.facts.join('\n- ')}`);
   if(diaryEntry)material.push(`CHECK-IN DA SEMANA:\n${CHECKIN.map(q=>diaryEntry.answers?.[q.key]?`- ${q.q} ${diaryEntry.answers[q.key]}`:'').filter(Boolean).join('\n')}`);
   if(signals?.skills?.length&&(pillar==='opiniao'||pillar==='dica'))material.push(`O QUE O RADAR OBSERVOU NAS VAGAS (${signals.jobsCount} vagas compatíveis lidas pelo robô): ${signals.skills.map(s=>`${s.skill} em ${s.pct}%`).join(', ')}.`);
@@ -177,15 +182,16 @@ export async function writePost(cfg,{voice,profile,pillar,story,diaryEntry,signa
   if(pillar==='chamada')material.push(`O QUE A PESSOA BUSCA: ${voice.cta||''} Objetivo: ${voice.goal}.`);
   material.push(`CURRÍCULO (use só se ajudar):\n${profileFacts(profile).slice(0,3500)}`);
   const lang=language==='en'?'Escreva este post em inglês.':'Escreva em português do Brasil.';
-  const user=`Tipo de post: ${p.label} — ${p.desc}\n${lang}\n\n${material.join('\n\n')}\n\n${previous?`VERSÃO ANTERIOR:\n${previous}\n\nPEDIDO DE AJUSTE: ${instruction||'reescreva melhor'}\n\n`:''}Devolva somente JSON:\n{"text":"o post completo, com quebras de linha e hashtags no fim","hook":"a primeira linha","image":{"kind":"print|card|photo","printIdea":"se kind=print: qual print ou foto real a pessoa deve tirar","cardTitle":"se kind=card: frase de até 60 caracteres","cardLines":["até 3 tópicos curtos"],"photoQuery":"se kind=photo: 2 a 4 palavras em inglês para buscar foto real"},"factsUsed":["fatos usados"]}\nEscolha kind=print quando o post fala de um projeto que pode ser mostrado; card para dicas e opiniões; photo só quando nada disso servir.`;
-  const r=await aiChat(cfg,{system:voiceBrief(voice,profile),user,model,maxTokens:8000,temperature:0.85,session:`radar-post-${pillar}`});
+  const user=`Tipo de post: ${p.label} — ${p.desc}\n${lang}\n\n${material.join('\n\n')}\n\n${previous?`VERSÃO ANTERIOR:\n${previous}\n\nPEDIDO DE AJUSTE: ${instruction||'reescreva melhor'}\n\n`:''}Devolva somente JSON:\n{"text":"o post completo, com quebras de linha e hashtags no fim","hook":"a primeira linha","image":{"kind":"print|card|photo","printIdea":"se kind=print: qual print ou foto real a pessoa deve tirar","cardTitle":"se kind=card: frase de até 60 caracteres","cardLines":["até 3 tópicos curtos"],"photoQuery":"sempre: 2 a 4 palavras em inglês para encontrar foto real relacionada ao post"},"factsUsed":["fatos usados"]}\nEscolha kind=print quando o post fala de um projeto que pode ser mostrado; card para dicas e opiniões; photo só quando nada disso servir.`;
+  if(requestOnly)return {system:voiceBrief(voice,profile),user};
+  const r=generated?{text:JSON.stringify(generated),model:model||cfg.model}:await aiChat(cfg,{system:voiceBrief(voice,profile),user,model,maxTokens:8000,temperature:0.6,session:`radar-post-${pillar}`});
   const d=parseJson(r.text);
   if(!d.text)throw Error('a IA não devolveu o texto do post');
   const img=d.image||{};
   return {text:String(d.text).trim().slice(0,3000),hook:String(d.hook||'').slice(0,200),image:{kind:['print','card','photo'].includes(img.kind)?img.kind:'card',printIdea:String(img.printIdea||'').slice(0,300),cardTitle:String(img.cardTitle||d.hook||'').slice(0,90),cardLines:(img.cardLines||[]).map(x=>String(x).slice(0,80)).slice(0,3),photoQuery:String(img.photoQuery||'').slice(0,60)},factsUsed:(d.factsUsed||[]).map(String).slice(0,8),model:r.model};
 }
 
-export async function planWeek(cfg,state,{count,from=new Date()}={}){
+export async function planWeek(cfg,state,{count,from=new Date(),photoKey,http,onPost,manual=false,topics=[]}={}){
   const P=state.posts;const voice={...DEFAULT_VOICE,...(P.voice||{})};
   const upcoming=P.items.filter(x=>['draft','approved'].includes(x.status)&&Date.parse(x.scheduledFor)>from.getTime());
   const want=count?Math.min(7,Number(count)):Math.max(0,(Number(voice.postsPerWeek)||3)-upcoming.filter(x=>Date.parse(x.scheduledFor)<from.getTime()+8*86400000).length);
@@ -196,20 +202,34 @@ export async function planWeek(cfg,state,{count,from=new Date()}={}){
   const signals=marketSignals(state);
   const weekAgo=Date.now()-8*86400000;
   const freshDiary=(P.diary||[]).filter(d=>Date.parse(d.at)>weekAgo&&!d.usedAt).at(-1)||null;
-  const created=[],errors=[];
+  const created=[],errors=[],prepared=[];
   for(let i=0;i<slots.length;i++){
-    const pillar=pillars[i];
+    const topic=topics[i]||{};const selected=['emprego','clientes',...PILLARS.map(p=>p.key)].includes(topic.pillar)?topic.pillar:pillars[i];const pillar=['emprego','clientes'].includes(selected)?'chamada':selected;const postVoice={...voice,...(selected==='emprego'?{goal:'emprego'}:selected==='clientes'?{goal:'clientes'}:{})};const instruction=String(topic.instruction||'').slice(0,1500);
     let story=null,diaryEntry=null;
-    if(freshDiary&&i===0&&pillar!=='chamada'){diaryEntry=freshDiary}
+    if(freshDiary&&i===0&&pillar==='historia'&&!topic.storyId){diaryEntry=freshDiary}
     else if(pillar!=='chamada'){
       const pool=(P.stories||[]).filter(s=>!s.archived);
-      story=pool.filter(s=>s.pillar===pillar).sort((a,b)=>a.used-b.used)[0]||pool.sort((a,b)=>a.used-b.used)[0]||null;
+      story=pool.find(s=>s.id===topic.storyId)||pool.filter(s=>s.pillar===pillar).sort((a,b)=>a.used-b.used)[0]||pool.sort((a,b)=>a.used-b.used)[0]||null;
     }
     const language=voice.language==='alternar'?(i%2?'en':'pt'):voice.language==='en'?'en':'pt';
+    prepared.push({voice:postVoice,profile:state.profile,pillar,story,diaryEntry,signals,language,instruction,interview:P.interview});
+  }
+  const prompts=await Promise.all(prepared.map(p=>writePost(cfg,{...p,requestOnly:true})));
+  const started=Date.now();
+  // Um único pedido para o lote evita filas entre posts e concorrência no provedor.
+  const response=await aiChatOnce(cfg,{model:cfg.fastModel||AI_DEFAULTS.fastModel,system:'Você é um editor de posts de LinkedIn. Siga integralmente as regras de cada pedido. Devolva apenas JSON válido com {"posts":[...]} na mesma ordem. Cada item deve ter os campos solicitados no respectivo pedido. Preserve datas, negativas e resultados reais.',user:JSON.stringify(prompts),maxTokens:10000,temperature:0.6,session:'radar-post-lote',timeout:45000});
+  const batch=parseJson(response.text);
+  if(!Array.isArray(batch.posts)||batch.posts.length!==prepared.length)throw Error('A IA devolveu um lote incompleto. Tente gerar novamente.');
+  console.log('Lote de posts: '+prepared.length+' textos em '+(Date.now()-started)+' ms ('+response.model+')');
+  for(let i=0;i<prepared.length;i++){
+    const {pillar,story,diaryEntry,language}=prepared[i];
     try{
-      const w=await writePost(cfg,{voice,profile:state.profile,pillar,story,diaryEntry,signals,language});
-      const post={id:`post-${randomUUID().slice(0,8)}`,status:voice.autoApprove?'approved':'draft',pillar,language,storyId:story?.id||null,fromCheckin:!!diaryEntry,scheduledFor:slots[i],...w,createdAt:new Date().toISOString(),history:[{at:new Date().toISOString(),event:`Escrito por ${w.model}`}]};
+      const w=await writePost(cfg,{...prepared[i],model:response.model,generated:batch.posts[i]});
+      const post={id:`post-${randomUUID().slice(0,8)}`,status:!manual&&voice.autoApprove?'approved':'draft',pillar,language,storyId:story?.id||null,fromCheckin:!!diaryEntry,scheduledFor:slots[i],...w,createdAt:new Date().toISOString(),history:[{at:new Date().toISOString(),event:`Escrito por ${w.model}`}]};
+      post.image.style=['contrast','editorial','minimal'][i%3];
+      if(photoKey&&http)try{await choosePostPhoto(post,photoKey,http,{otherPosts:P.items})}catch(error){post.imageError=error.message;errors.push(`Imagem de ${pillarByKey(pillar).label}: ${error.message}`)}
       P.items.push(post);created.push(post);
+      if(onPost)await onPost(post,{completed:i+1,total:slots.length});
       if(story)story.used++;
       if(diaryEntry)diaryEntry.usedAt=new Date().toISOString();
     }catch(e){errors.push(`${pillarByKey(pillar).label}: ${e.message}`)}
@@ -220,6 +240,22 @@ export async function planWeek(cfg,state,{count,from=new Date()}={}){
 
 // ---------- Fotos reais (Pixabay ou Pexels, detectado pelo formato da chave) ----------
 export const photoProvider=key=>/^\d+-[0-9a-f]{20,}$/i.test(String(key||'').trim())?'Pixabay':'Pexels';
+export async function choosePostPhoto(post,key,http,{otherPosts=[]}={}){
+  if(!key||!http||post.image?.chosen||post.status==='published'||post.status==='skipped')return false;
+  const fallback={prova:'software development computer',dica:'technology workspace',historia:'professional learning technology',opiniao:'digital business technology',chamada:'professional networking'};
+  const query=String(post.image?.photoQuery||fallback[post.pillar]||'professional technology').trim();
+  const near=otherPosts.filter(p=>p.id!==post.id&&p.status!=='skipped'&&p.image?.chosen&&Math.abs(Date.parse(p.scheduledFor)-Date.parse(post.scheduledFor))<=8*86400000);
+  const used=new Set(near.map(p=>`${p.image.chosen.provider}:${p.image.chosen.id}`));
+  let photos=await searchPhotos(key,query,{http});
+  let photo=photos.find(p=>p.large&&p.thumb&&!used.has(`${p.provider}:${p.id}`));
+  if(!photo&&query!==fallback[post.pillar]){
+    photos=await searchPhotos(key,fallback[post.pillar]||'professional technology',{http});
+    photo=photos.find(p=>p.large&&p.thumb&&!used.has(`${p.provider}:${p.id}`));
+  }
+  if(!photo)throw Error(`O ${photoProvider(key)} não encontrou uma foto diferente para este post. Tente outra busca.`);
+  post.image={...post.image,kind:'photo',chosen:photo,photoQuery:query,autoSelected:true};
+  return true;
+}
 export async function searchPhotos(key,query,{http}){
   if(!key)throw Error('Cadastre a chave do Pixabay ou do Pexels em Meu perfil › Inteligência artificial e imagens.');
   const q=String(query||'').trim()||'office work';const provider=photoProvider(key);

@@ -18,7 +18,10 @@ export const MIN_PASSWORD=10;
 export function parseCookies(req){const out={};for(const part of String(req.headers.cookie||'').split(';')){const i=part.indexOf('=');if(i>0)out[part.slice(0,i).trim()]=decodeURIComponent(part.slice(i+1).trim())}return out}
 // Cabeçalhos de IP podem ser enviados pelo próprio cliente. Para limitar tentativas,
 // use somente o endereço da conexão recebido pelo servidor.
-export function clientIp(req){return String(req.socket?.remoteAddress||'').trim()}
+// Com RADAR_TRUST_PROXY=1 (servidor só acessível pelo túnel da Cloudflare, porta presa em 127.0.0.1),
+// o IP real vem do cabeçalho CF-Connecting-IP, que a Cloudflare sempre sobrescreve. Sem isso, todo mundo
+// pareceria vir do mesmo endereço e um estranho errando a senha bloquearia também o dono.
+export function clientIp(req){const cf=process.env.RADAR_TRUST_PROXY==='1'?String(req.headers['cf-connecting-ip']||'').trim():'';return cf&&/^[0-9a-f.:]{3,45}$/i.test(cf)?cf:String(req.socket?.remoteAddress||'').trim()}
 export function isHttps(req){return req.headers['x-forwarded-proto']==='https'||/https/.test(String(req.headers['cf-visitor']||''))||!!req.socket?.encrypted}
 // "Local" = pedido feito no próprio computador do servidor, sem passar por túnel/proxy.
 export function isLocal(req){const ip=String(req.socket?.remoteAddress||'');const host=String(req.headers.host||'').toLowerCase();return /^(127\.|::1$|::ffff:127\.)/.test(ip)&&/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(host)&&!req.headers['cf-connecting-ip']&&!req.headers['x-forwarded-for']&&!req.headers['cf-ray']}

@@ -38,7 +38,7 @@ function renderRun(data){renderKpis(data);renderLastRun(data);renderSourceStats(
 if(searchMeta?.searchedAt)renderRun(searchMeta);else{renderLastRun(null);setStatus('Clique em <strong>Buscar vagas agora</strong> para o robô procurar vagas reais.','info')}
 
 function realJobToItem(job){
-  const mode=job.workplace==='hybrid'?'Híbrido':job.remote?'Remoto':'Presencial';
+  const mode=job.workplace==='hybrid'?'Híbrido':job.region==='exterior'?'Fora do Brasil':job.remote?'Remoto':'Presencial';
   const location=job.remote?(job.location||'Remoto'):(job.location||'Local a confirmar');
   const published=job.publishedAt?new Date(job.publishedAt).toLocaleDateString('pt-BR'):null;
   const dateTag=published?(job.dateKind==='bulletin'?`Boletim de ${published}`:job.dateKind==='firstSeen'?`Sem data na fonte · visto em ${published}`:`Publicada em ${published}`):null;
@@ -66,6 +66,8 @@ document.querySelector('#settings-form')?.addEventListener('submit',()=>setTimeo
 
 document.addEventListener('submit',e=>{if(e.target.closest('#profile'))setTimeout(syncServer,50)});
 
+// Mantém o servidor com as preferências atuais (a busca da meia-noite usa estas).
+syncServer();
 fetch('/api/jobs/latest').then(r=>r.ok?r.json():null).then(data=>{
   if(data?.searchedAt&&Array.isArray(data.jobs)&&(!searchMeta?.searchedAt||data.searchedAt>searchMeta.searchedAt)){
     importSearchResults(data);

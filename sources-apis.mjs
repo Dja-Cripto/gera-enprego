@@ -55,10 +55,12 @@ export async function collectGoogleJobs(settings,http,keys){
     queries.push({q:`vagas de emprego ${city}`,location:`${city}, State of ${state||'Bahia'}, Brazil`,local:true});
     for(const t of terms.slice(0,3))queries.push({q:`${t} ${city}`,location:`${city}, State of ${state||'Bahia'}, Brazil`,local:true});
   }
-  if(settings.remote)for(const t of terms.slice(0,3))queries.push({q:`${t} remoto`,location:'Brazil',local:false});
+  if(settings.remote)for(const t of terms.slice(0,4))queries.push({q:`${t} remoto home office`,location:'Brazil',local:false});
   const found=new Map();
   // Distribui o orçamento: primeiras páginas de cada consulta antes de aprofundar.
-  const plan=queries.slice(0,budget);
+  // Intercala buscas locais e remotas para o orçamento não ir todo para a cidade.
+  const loc=queries.filter(q=>q.local),rem=queries.filter(q=>!q.local),mixed=[];for(let i=0;i<Math.max(loc.length,rem.length);i++){if(loc[i])mixed.push(loc[i]);if(rem[i])mixed.push(rem[i])}
+  const plan=mixed.slice(0,budget);
   for(const query of plan){
     try{
       stat.queries++;

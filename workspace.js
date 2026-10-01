@@ -5,7 +5,7 @@ const ASSISTANT_REQUESTS_KEY="radar-assistant-requests-v1";
 
 // Perfil inicial: vem de perfil-pessoal.js (só no seu computador, fora do GitHub); sem ele, começa em branco.
 const profileSeed=window.PERFIL_PESSOAL||{schemaVersion:4,name:"",city:"",phone:"",email:"",portfolio:"",license:"",summary:"",skillsTech:"",skillsOther:"",academic:[],technical:[],experiences:[],courses:[],projects:[],languages:[]};
-const settingsSeed={jobRoles:"Suporte técnico; suporte a sistemas; implantação de software; dados e BI júnior; processos e automação",jobCity:"Feira de Santana, BA",jobLevels:"Estágio; assistente; júnior",jobMaxAgeDays:"7",remote:true,hybrid:true,onsite:true,jobSources:"https://tel.pandape.infojobs.com.br",remoteMinMatch:"70",localMinMatch:"40",offer:"Automações para pequenos negócios, geração de descrições de produtos e análise de dados",clientTypes:"Lojas e pequenos comércios",clientRegion:"Feira de Santana e região",clientSignals:"Catálogo atualizado com frequência; tarefas repetitivas de conteúdo ou cadastro",contentTopics:"Projetos do portfólio; dados; automação; aprendizados em ADS",linkedin:"",imageStyle:"Editorial limpo, tecnológico, sem texto na imagem",assistantNotes:"Escrever em primeira pessoa, com fatos verificáveis e sem exagerar experiência."};
+const settingsSeed={jobRoles:"Suporte técnico; suporte a sistemas; implantação de software; dados e BI júnior; processos e automação",jobCity:"Feira de Santana, BA",jobLevels:"Estágio; assistente; júnior",jobMaxAgeDays:"1",remote:true,international:true,hybrid:true,onsite:true,jobSources:"https://tel.pandape.infojobs.com.br",remoteMinMatch:"70",localMinMatch:"40",offer:"Automações para pequenos negócios, geração de descrições de produtos e análise de dados",clientTypes:"Lojas e pequenos comércios",clientRegion:"Feira de Santana e região",clientSignals:"Catálogo atualizado com frequência; tarefas repetitivas de conteúdo ou cadastro",contentTopics:"Projetos do portfólio; dados; automação; aprendizados em ADS",linkedin:"",imageStyle:"Editorial limpo, tecnológico, sem texto na imagem",assistantNotes:"Escrever em primeira pessoa, com fatos verificáveis e sem exagerar experiência."};
 
 function readLocal(key,fallback){try{const data=JSON.parse(localStorage.getItem(key));if(data&&typeof data==="object")return data}catch{}return structuredClone(fallback)}
 let profile=readLocal(PROFILE_KEY,profileSeed);
@@ -28,6 +28,8 @@ if(profile.schemaVersion!==4){
 }
 let settings={...settingsSeed,...readLocal(SETTINGS_KEY,settingsSeed)};
 // Migração única: inclui a página de vagas da Tel (Pandapé), grande empregadora local que apareceu na prova de cobertura.
+// v0.5: busca automática das últimas 24 horas e vagas fora do Brasil ligadas por padrão (dá para mudar em Meu perfil).
+if(!settings.migratedV5){settings.jobMaxAgeDays="1";if(settings.international===undefined)settings.international=true;settings.migratedV5=true;try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings))}catch{}}
 if(!settings.migratedPandape){if(!/pandape/i.test(settings.jobSources||""))settings.jobSources=[settings.jobSources,"https://tel.pandape.infojobs.com.br"].filter(Boolean).join("\n");settings.migratedPandape=true;try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings))}catch{}}
 let resumeMeta=readLocal(RESUME_META_KEY,{});
 let assistantRequests=readLocal(ASSISTANT_REQUESTS_KEY,[]);

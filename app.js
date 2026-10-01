@@ -16,6 +16,7 @@ let items=load();
 items=items.filter(i=>i.type==="jobs");
 const selected={content:null,leads:null};let activeView="overview";let selectedId=null;let selectedJobId=null;let toastTimer;
 const jobFilters={fit:"all",mode:"all",source:"all",query:""};
+const MODE_CHIPS=[["all","Todas"],["Remoto","Remoto no Brasil"],["Fora do Brasil","Fora do Brasil"],["Presencial","Na minha cidade"],["Híbrido","Híbrido"]];
 const $=s=>document.querySelector(s);
 const narrow=()=>window.matchMedia("(max-width: 960px)").matches;
 function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(items))}catch{}}
@@ -31,7 +32,7 @@ function isRealJob(i){return i.type==="jobs"&&!/^job-\d$/.test(i.id)}
 function getPending(t){return items.filter(i=>i.type===t&&i.status==="pending")}
 function showToast(message){const t=$("#toast");t.textContent=message;t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),3200)}
 function setView(view){activeView=view;document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active",el.id===view));document.querySelectorAll(".nav-item").forEach(el=>el.classList.toggle("active",el.dataset.view===view));document.querySelector(".profile-chip")?.classList.toggle("active",view==="settings");render();window.scrollTo({top:0,behavior:"instant"})}
-function jobMode(item){return (item.tags||[]).find(t=>["Remoto","Híbrido","Presencial","Local"].includes(t))||""}
+function jobMode(item){return (item.tags||[]).find(t=>["Remoto","Fora do Brasil","Híbrido","Presencial","Local"].includes(t))||""}
 function company(item){return (item.subtitle||"").split(" • ")[0]}
 function place(item){return (item.subtitle||"").split(" • ").slice(1).join(" • ")}
 function relDate(iso){if(!iso)return "";const days=Math.floor((Date.now()-new Date(iso))/86400000);if(days<=0)return "hoje";if(days===1)return "ontem";return `há ${days} dias`}
@@ -90,6 +91,7 @@ function detailHtml(item,mode="details"){
   </header>`;
   if(mode==="adjust")h+=`<section class="d-section adjust-box"><h3><label for="adjust-note">O que você quer mudar nesta sugestão?</label></h3><textarea id="adjust-note" rows="3" placeholder="Ex.: dar mais destaque ao meu projeto de dashboards"></textarea><div class="row-actions"><button class="button" data-action="save-adjust" data-id="${id}">Salvar pedido</button><button class="button button-ghost" data-action="cancel-adjust" data-id="${id}">Cancelar</button></div></section>`;
   if(item.note)h+=section("Seu pedido de ajuste",`<p>${escapeHtml(item.note)}</p>`);
+  if(jobMode(item)==="Fora do Brasil")h+=section("Vaga internacional",`<ul class="checks warn"><li>${icon("alert")}<span>O anúncio costuma estar em inglês, e a entrevista também.</span></li><li>${icon("alert")}<span>Confirme se a empresa contrata quem mora no Brasil (geralmente como PJ/contractor, com pagamento em dólar ou euro).</span></li><li>${icon("alert")}<span>Veja o fuso horário exigido para reuniões.</span></li></ul>`);
   h+=section("Por que combina com você",`<ul class="checks">${(item.evidence||[]).map(e=>`<li>${icon("check")}<span>${escapeHtml(e)}</span></li>`).join("")}</ul>`);
   if(gaps.length)h+=section("O que conferir antes de se candidatar",`<ul class="checks warn">${gaps.map(e=>`<li>${icon("alert")}<span>${escapeHtml(e)}</span></li>`).join("")}</ul>`);
   const facts=[];
@@ -170,6 +172,8 @@ function render(){
   refreshSourceOptions();
   const jobs=filteredJobs();
   const filtered=jobFilters.fit!=="all"||jobFilters.mode!=="all"||jobFilters.source!=="all"||jobFilters.query;
+  const chipBase=items.filter(i=>i.type==="jobs"&&(!hasReal||isRealJob(i))&&($("#job-filter").value==="all"||i.status===$("#job-filter").value));
+  const chips=$("#mode-chips");if(chips)chips.innerHTML=MODE_CHIPS.map(([v,l])=>{const n=v==="all"?chipBase.length:chipBase.filter(i=>jobMode(i)===v||(v==="Presencial"&&jobMode(i)==="Local")).length;return `<button class="chip${jobFilters.mode===v?" active":""}" data-mode-chip="${v}" ${n||v==="all"||jobFilters.mode===v?"":"disabled"}>${l}<span>${n}</span></button>`}).join("");
   $("#jobs-count").textContent=`${jobs.length} ${jobs.length===1?"vaga":"vagas"}${filtered?" com estes filtros":""}`;
   if(!jobs.some(j=>j.id===selectedJobId))selectedJobId=jobs[0]?.id||null;
   $("#jobs-list").innerHTML=jobs.length?jobs.map(i=>jobListItem(i)).join(""):empty("Nenhuma vaga aqui","Mude os filtros ou faça uma nova busca.");
@@ -249,6 +253,7 @@ document.addEventListener("input",e=>{if(e.target.id==="draft-text"){const c=$("
 (function(){const apply=t=>{document.documentElement.dataset.theme=t;document.querySelectorAll("[data-theme-choice]").forEach(b=>b.classList.toggle("active",b.dataset.themeChoice===t));document.querySelector('meta[name="color-scheme"]').content=t;document.querySelector('meta[name="theme-color"]').content=t==="dark"?"#0d1f1c":"#112926"};let t="light";try{t=localStorage.getItem("radar-theme")==="dark"?"dark":"light"}catch{}apply(t);document.addEventListener("click",e=>{const b=e.target.closest("[data-theme-choice]");if(!b)return;t=b.dataset.themeChoice;apply(t);try{localStorage.setItem("radar-theme",t)}catch{}})})();
 $("#fit-select").addEventListener("change",e=>{jobFilters.fit=e.target.value;render()});
 $("#mode-filter").addEventListener("change",e=>{jobFilters.mode=e.target.value;render()});
+document.addEventListener("click",e=>{const c=e.target.closest("[data-mode-chip]");if(!c)return;jobFilters.mode=c.dataset.modeChip;const sel=$("#mode-filter");if(sel)sel.value=jobFilters.mode;render()});
 $("#source-filter").addEventListener("change",e=>{jobFilters.source=e.target.value;render()});
 let queryTimer;$("#job-query").addEventListener("input",e=>{clearTimeout(queryTimer);queryTimer=setTimeout(()=>{jobFilters.query=e.target.value;render()},150)});
 (function(){const tz="America/Bahia";const now=new Date();const hour=Number(new Intl.DateTimeFormat("pt-BR",{hour:"numeric",hourCycle:"h23",timeZone:tz}).format(now));$("#greeting").textContent=hour<12?"Bom dia":hour<18?"Boa tarde":"Boa noite";const cap=t=>t.charAt(0).toUpperCase()+t.slice(1);$("#today-label").textContent=cap(new Intl.DateTimeFormat("pt-BR",{dateStyle:"full",timeZone:tz}).format(now));$("#hero-date").textContent=cap(new Intl.DateTimeFormat("pt-BR",{weekday:"long",day:"numeric",month:"long",timeZone:tz}).format(now))})();

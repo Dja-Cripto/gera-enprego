@@ -238,7 +238,8 @@ function bindCampaignForm(){
       LS.campaignId=r.campaign.id;try{localStorage.setItem("radar-campaign",LS.campaignId)}catch{}
       LS.editing=null;
       if(!isNew&&LS.leads.some(l=>l.campaignId===r.campaign.id)){try{await api(`/api/campaigns/${encodeURIComponent(r.campaign.id)}/regenerate`,{method:"POST"})}catch{}}
-      await loadLeads();
+      await document.querySelector("#digest-test")?.addEventListener("click",async e=>{const b=e.target;b.disabled=true;b.textContent="Enviando…";try{const r=await api("/api/digest/test",{method:"POST",body:{}});showToast(`Resumo enviado para ${r.to}.`);LS.email.lastDigestAt=new Date().toISOString();renderEmailPanel()}catch(err){showToast(err.message)}finally{b.disabled=false;b.textContent="Enviar um resumo agora"}});
+loadLeads();
       showToast(isNew?"Campanha criada. Agora clique em Buscar empresas.":"Campanha salva. Mensagens não editadas foram reescritas.");
     }catch(err){showToast(err.message)}
   });
@@ -317,14 +318,17 @@ document.querySelector("#search-leads")?.addEventListener("click",runSearch);
 function renderEmailPanel(){
   const form=document.querySelector("#email-form");if(!form)return;const em=LS.email||{};
   const st=document.querySelector("#int-email");if(st){st.textContent=em.configured?"Ativo":"Não configurado";st.className=`state ${em.configured?"approved":""}`}
-  for(const [k,v] of [["gmailUser",em.user],["senderName",em.senderName],["senderTitle",em.senderTitle],["senderPhone",em.senderPhone],["senderSite",em.senderSite]])if(form.elements[k]&&document.activeElement!==form.elements[k])form.elements[k].value=v||"";
+  for(const [k,v] of [["gmailUser",em.user],["senderName",em.senderName],["senderTitle",em.senderTitle],["senderPhone",em.senderPhone],["senderSite",em.senderSite],["alertEmail",em.alertEmail]])if(form.elements[k]&&document.activeElement!==form.elements[k])form.elements[k].value=v||"";
   if(form.elements.dailyLimit)form.elements.dailyLimit.value=String(em.dailyLimit||20);
+  if(form.elements.digestEnabled)form.elements.digestEnabled.checked=em.digestEnabled!==false;
+  if(form.elements.digestHour)form.elements.digestHour.value=String(em.digestHour??5);
+  const dl=document.querySelector("#digest-last");if(dl)dl.textContent=em.lastDigestAt?`Último: ${new Date(em.lastDigestAt).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}`:"";
   form.elements.gmailPass.placeholder=em.configured?"Senha de app salva (deixe em branco para manter)":"16 letras, sem espaços";
   const n=document.querySelector("#email-sent-today");if(n)n.textContent=em.configured?`${em.sentToday||0} de ${em.dailyLimit||20} e-mails enviados hoje.`:"";
 }
 document.querySelector("#email-form")?.addEventListener("submit",async e=>{
   e.preventDefault();const f=e.target.elements;
-  const body={gmailUser:f.gmailUser.value.trim(),gmailPass:f.gmailPass.value.replace(/\s+/g,""),senderName:f.senderName.value,senderTitle:f.senderTitle.value,senderPhone:f.senderPhone.value,senderSite:f.senderSite.value,dailyLimit:f.dailyLimit.value};
+  const body={gmailUser:f.gmailUser.value.trim(),gmailPass:f.gmailPass.value.replace(/\s+/g,""),senderName:f.senderName.value,senderTitle:f.senderTitle.value,senderPhone:f.senderPhone.value,senderSite:f.senderSite.value,alertEmail:f.alertEmail.value.trim(),digestEnabled:f.digestEnabled.checked,digestHour:f.digestHour.value,dailyLimit:f.dailyLimit.value};
   if(body.gmailUser&&!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(body.gmailUser)){showToast("Confira o endereço de e-mail.");return}
   try{const r=await api("/api/integrations",{method:"POST",body});f.gmailPass.value="";LS.email=r.email||LS.email;renderEmailPanel();document.querySelector("#email-saved").textContent="Salvo. As mensagens que você não editou já usam a nova assinatura.";showToast("E-mail de prospecção salvo.")}
   catch(err){showToast(err.message)}

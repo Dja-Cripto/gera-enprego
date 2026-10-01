@@ -1,27 +1,32 @@
 import http from 'node:http';
-import {readFile,writeFile} from 'node:fs/promises';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {dirname,join,resolve,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {createHash} from 'node:crypto';
+import {createHash,randomBytes} from 'node:crypto';
 import {collectBrazil,norm,plain} from './sources-br.mjs';
 import {matchProfile} from './match-profile.mjs';
 import {collectApis} from './sources-apis.mjs';
+import {collectRemote,openToBrazil,isBrazilLocation} from './sources-remote.mjs';
 import {NICHES,OFFERS,buildOfferSheet,searchCampaign,composeMessages,scoreLead,STATUSES,customNiche} from './leads.mjs';
 import {sendMail} from './mailer.mjs';
 import {createAuth,isHttps,isLocal,passwordProblem,MIN_PASSWORD} from './auth.mjs';
-import {INTERVIEW,CHECKIN,PILLARS,DEFAULT_VOICE,DAY_NAMES,AI_DEFAULTS,aiConfig,aiChat,buildStoryBank,planWeek,writePost,marketSignals,searchPhotos,photoProvider,reminderEmail} from './posts.mjs';
+import {INTERVIEW,CHECKIN,PILLARS,DEFAULT_VOICE,DAY_NAMES,AI_DEFAULTS,aiConfig,aiChat,buildStoryBank,planWeek,writePost,marketSignals,searchPhotos,photoProvider,choosePostPhoto,reminderEmail} from './posts.mjs';
+import {LINKEDIN_CALLBACK,authorizationUrl,exchangeCode,memberInfo,publishMemberPost,sealToken,openToken} from './linkedin.mjs';
 
 const root=dirname(fileURLToPath(import.meta.url));
 const port=Number(process.env.PORT||8765);
+const host=process.env.HOST||'127.0.0.1';
+const dataDir=process.env.RADAR_DATA_DIR||root;
+const publicUrl=(process.env.RADAR_PUBLIC_URL||`http://localhost:${port}`).replace(/\/$/,'');
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.md':'text/markdown; charset=utf-8','.pdf':'application/pdf'};
 const cache=new Map();
 const cacheMs=60*60*1000;
-const stateFile=join(root,'.radar-jobs-state.json');
+const stateFile=join(dataDir,'.radar-jobs-state.json');
 // ---------- Proteção por senha ----------
-const auth=createAuth({file:join(root,'.radar-auth.json'),sendCode:async(code,req)=>{
+const auth=createAuth({file:join(dataDir,'.radar-auth.json'),sendCode:async(code,req)=>{
   const k=state.integrations||{};if(!k.gmailUser||!k.gmailPass)throw Error('configure o Gmail em Meu perfil › E-mail para prospecção');
   const onde=String(req.headers['user-agent']||'').replace(/\(.*?\)/g,'').slice(0,80);
-  await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:'Radar',to:k.gmailUser,subject:`Seu código de acesso ao Radar: ${code}`,text:`Alguém (esperamos que você) entrou no Radar com a sua senha a partir de um computador novo.\n\nCódigo: ${code}\n\nEle vale por 10 minutos.\nNavegador: ${onde}\nHorário: ${new Date().toLocaleString('pt-BR',{timeZone:'America/Bahia'})}\n\nSe não foi você, troque a senha em Meu perfil › Segurança.\n\n— Radar`});
+  await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:'Radar',to:k.alertEmail||k.gmailUser,subject:`Seu código de acesso ao Radar: ${code}`,text:`Alguém (esperamos que você) entrou no Radar com a sua senha a partir de um computador novo.\n\nCódigo: ${code}\n\nEle vale por 10 minutos.\nNavegador: ${onde}\nHorário: ${new Date().toLocaleString('pt-BR',{timeZone:'America/Bahia'})}\n\nSe não foi você, troque a senha em Meu perfil › Segurança.\n\n— Radar`});
 }});
 await auth.load();
 const sineBahiaUrl='https://www.ba.gov.br/trabalho/280/vagas-do-dia-sinebahia';
@@ -29,10 +34,12 @@ let state={settings:null,profile:null,latest:null,seen:{},catalog:[],decisions:{
 try{state={...state,...JSON.parse(await readFile(stateFile,'utf8'))}}catch{}
 state.seen||={};state.catalog||=[];state.decisions||={};state.integrations||={};state.apiCache||={};state.manualJobs||=[];state.campaigns||=[];state.leads||={};state.leadBlocks||={ids:{},phones:{}};state.emailLog||=[];
 state.posts||={};state.posts.voice||={};state.posts.interview||={};state.posts.stories||=[];state.posts.diary||=[];state.posts.items||=[];
+state.linkedin||={};
 async function persistState(){await writeFile(stateFile,JSON.stringify(state),'utf8')}
 const supportTerms=/suporte|support|help.?desk|customer success|customer service|atendimento ao cliente|implementation|implanta[cç][aã]o|service desk|t[eé]cnico de inform[aá]tica|t[eé]cnico em inform[aá]tica|inform[aá]tica|\bti\b|infraestrutura|sistemas/i;
 const dataTerms=/dados|data analyst|business intelligence|power bi|\bbi\b|analytics|indicadores|relat[oó]rios|intelig[eê]ncia de mercado/i;
 const operationsTerms=/opera[cç][oõ]es|operations|assistente administrativo|auxiliar administrativo|administrative assistant|office assistant|processos|automa[cç][aã]o|automation|administrativ|auxiliar de escrit[oó]rio|back.?office|assistente de escrit[oó]rio/i;
+const devTerms=/desenvolvedor|desenvolvedora|programador|programadora|developer|software engineer|engenheir[oa] de software|front.?end|back.?end|full.?stack|\breact\b|node\.?js|python|\bjava\b|\.net|\bc#|\bphp\b|laravel|mobile|android|\bios\b|flutter|\bqa\b|tester|test automation|analista de testes|devops|\bsre\b|cloud engineer|web developer/i;
 const internTech=/est[aá]gi|intern|trainee/i;
 const internTechArea=/\bti\b|tecnologia|sistemas|inform[aá]tica|dados|desenvolvimento|\bads\b|computa[cç][aã]o|software|suporte/i;
 // Áreas próximas da experiência registrada no currículo: entram como "possível correspondência", não como boa.
@@ -79,8 +86,9 @@ function areaFit(job,settings){
   const wantedData=/dados|data|\bbi\b|power bi/i.test(desired);
   const wantedOperations=/process|automa|administrativ|opera[cç][aã]o/i.test(desired);
   const wantedIntern=/est[aá]gio/i.test(settings.jobLevels||'');
+  const wantedDev=/desenvolv|programad|developer|software|full.?stack|front|back.?end|react|python|java|\.net|php|mobile|flutter|\bqa\b|teste|devops/i.test(desired);
   if(/marketing|sales|vendas|vendedor|recruiter|recrutador|promotor/i.test(title))return null;
-  if((wantedSupport&&supportTerms.test(title))||(wantedData&&dataTerms.test(title))||(wantedOperations&&operationsTerms.test(title)))return 'boa';
+  if((wantedSupport&&supportTerms.test(title))||(wantedData&&dataTerms.test(title))||(wantedOperations&&operationsTerms.test(title))||(wantedDev&&devTerms.test(title)))return 'boa';
   if(wantedIntern&&internTech.test(title)&&internTechArea.test(title))return 'boa';
   if(adjacentTerms.test(title))return 'possivel';
   // O título não diz tudo: requisitos claros do perfil na descrição também contam como possibilidade.
@@ -101,7 +109,13 @@ function classify(job,settings){
   if(seniorTerms.test(`${job.title} ${job.level}`)&&!/j[uú]nior|\bjr\b|est[aá]gi|trainee/i.test(job.title))return {reason:'senioridade'};
   if(/est[aá]gi|estagi[aá]ri|\bintern(ship)?\b/i.test(job.title)&&!/est[aá]gi/i.test(settings.jobLevels||''))return {reason:'senioridade'};
   const workplace=job.workplace||(job.remote?'remote':'onsite');
-  if(workplace==='remote'){if(!settings.remote)return {reason:'local'};if(job.country!=='Brasil'&&!brazilGeo.test(job.location))return {reason:'local'}}
+  if(workplace==='remote'){
+    if(jobRegion(job)==='exterior'){
+      // Fora do Brasil: só entra se a pessoa quiser vagas internacionais e se a empresa aceita quem mora no Brasil.
+      if(!settings.international)return {reason:'local'};
+      if(job.openToBrazil===false||!openToBrazil(job.location,job.restrictions))return {reason:'exterior'};
+    }else if(!settings.remote)return {reason:'local'};
+  }
   else{
     if(workplace==='hybrid'&&!settings.hybrid)return {reason:'local'};
     if(workplace==='onsite'&&!settings.onsite)return {reason:'local'};
@@ -112,6 +126,7 @@ function classify(job,settings){
   if(!fit)return {reason:'area'};
   return {reason:null,fit};
 }
+function jobRegion(job){const w=job.workplace||(job.remote?'remote':'onsite');if(w!=='remote')return 'local';if(job.region)return job.region;if(job.country==='Brasil'||isBrazilLocation(job.location)||/brasil|brazil/i.test(job.location||''))return 'brasil';return 'exterior'}
 function rejectionReason(job,settings){return classify(job,settings).reason}
 function eligible(job,settings){return rejectionReason(job,settings)===null}
 function assess(job,fit='boa'){
@@ -132,7 +147,7 @@ function tidyTitle(title){
   return t.replace(/\s{2,}/g,' ').replace(/\s+([,.;:])/g,'$1').trim()||String(title);
 }
 function portugueseTitle(title){return tidyTitle(title).replace(/remote/ig,'Remoto').replace(/cloud support engineer/ig,'Profissional de suporte em nuvem').replace(/office assistant/ig,'Assistente de escritório').replace(/customer support/ig,'Suporte ao cliente').replace(/customer service/ig,'Atendimento ao cliente').replace(/technical support/ig,'Suporte técnico').replace(/data analyst/ig,'Analista de dados').replace(/administrative assistant/ig,'Assistente administrativo').replace(/operations assistant/ig,'Assistente de operações').replace(/junior/ig,'Júnior')}
-function portugueseOverview(job){const role=portugueseTitle(job.title);const place=job.workplace==='hybrid'?`vaga híbrida em ${job.location}`:job.remote?(job.country==='Brasil'?'vaga remota no Brasil':'vaga remota'):`vaga em ${job.location}`;const dateLabel=job.dateKind==='bulletin'?'no boletim de':job.dateKind==='firstSeen'?'vista pela primeira vez pelo Radar em':'publicada em';const language=job.language!=='pt'&&/\b(the|you|we|our|experience|responsibilities|requirements|skills|company)\b/i.test(job.description)?'A descrição original está em inglês; confirme o nível exigido e se aceita pessoas no Brasil.':'Confira os requisitos completos na vaga original.';return `${role} na ${job.company}. ${place}, ${dateLabel} ${new Date(job.publishedAt).toLocaleDateString('pt-BR')}. ${language}`}
+function portugueseOverview(job){const role=portugueseTitle(job.title);const place=job.workplace==='hybrid'?`vaga híbrida em ${job.location}`:job.remote?(jobRegion(job)==='exterior'?'vaga remota no exterior, aberta a quem mora no Brasil':'vaga remota no Brasil'):`vaga em ${job.location}`;const dateLabel=job.dateKind==='bulletin'?'no boletim de':job.dateKind==='firstSeen'?'vista pela primeira vez pelo Radar em':'publicada em';const language=job.language!=='pt'&&/\b(the|you|we|our|experience|responsibilities|requirements|skills|company)\b/i.test(job.description)?'A descrição original está em inglês; confirme o nível exigido e se aceita pessoas no Brasil.':'Confira os requisitos completos na vaga original.';return `${role} na ${job.company}. ${place}, ${dateLabel} ${new Date(job.publishedAt).toLocaleDateString('pt-BR')}. ${language}`}
 async function fetchJson(url,headers={},options={}){const {timeout=15000,...rest}=options;const response=await fetch(url,{...rest,headers:{'Accept':'application/json','User-Agent':'RadarDaniel/0.2 (personal job discovery)',...headers},signal:AbortSignal.timeout(timeout)});if(!response.ok)throw Error(response.status===403||response.status===429?`acesso bloqueado ou limitado pela fonte (HTTP ${response.status})`:`HTTP ${response.status}`);return response.json()}
 async function fetchRaw(url,headers={},timeout=15000){const response=await fetch(url,{headers:{'Accept':'text/html','User-Agent':'RadarDaniel/0.2 (personal job discovery)',...headers},signal:AbortSignal.timeout(timeout)});if(!response.ok)throw Error(`HTTP ${response.status}`);return response}
 async function fetchText(url){const response=await fetch(url,{headers:{'Accept':'text/html','User-Agent':'RadarDaniel/0.1 (personal job discovery)'},signal:AbortSignal.timeout(12000)});if(!response.ok)throw Error(`HTTP ${response.status}`);return response.text()}
@@ -144,7 +159,7 @@ async function cached(key,loader,ttl=cacheMs){
   if(ttl>cacheMs){state.apiCache[key]=entry;for(const [k,v] of Object.entries(state.apiCache))if(Date.now()-v.time>3*86400000)delete state.apiCache[k]}
   return data;
 }
-const reasonLabels={incompleta:'anúncio sem título ou link',restrita:'vaga exclusiva para um perfil não informado',semData:'sem data de publicação confirmada',foraDoPrazo:'fora do prazo de publicação escolhido',senioridade:'nível diferente do procurado',local:'fora da região ou modalidade escolhida',area:'fora das áreas escolhidas',duplicada:'mesma vaga em outra fonte',jaDecidida:'você já se candidatou ou marcou que não tem interesse',compatibilidade:'poucos requisitos da vaga constam no seu currículo'};
+const reasonLabels={incompleta:'anúncio sem título ou link',restrita:'vaga exclusiva para um perfil não informado',semData:'sem data de publicação confirmada',foraDoPrazo:'fora do prazo de publicação escolhido',senioridade:'nível diferente do procurado',local:'fora da região ou modalidade escolhida',exterior:'vaga no exterior que não aceita quem mora no Brasil',area:'fora das áreas escolhidas',duplicada:'mesma vaga em outra fonte',jaDecidida:'você já se candidatou ou marcou que não tem interesse',compatibilidade:'poucos requisitos da vaga constam no seu currículo'};
 const httpTools={fetchJson,fetchRaw,fetchText,cached};
 function dedupKey(job){return `${norm(plain(job.company)).replace(/ /g,'')}:${norm(plain(job.title)).replace(/ /g,'')}:${norm(job.city||(job.remote?'remoto':job.location)).replace(/ /g,'')}`}
 async function collect(settings){
@@ -152,10 +167,7 @@ async function collect(settings){
   const sources=[],failures=[],all=[],sourceStats=[];
   const track=(source,fn)=>fn().then(list=>{all.push(...list);sources.push(source);sourceStats.push({source,received:list.length,errors:[]})}).catch(error=>{failures.push(`${source}: ${error.message}`);sourceStats.push({source,received:0,errors:[error.message]})});
   const tasks=[];
-  if(settings.remote){
-    tasks.push(track('Jobicy',async()=>{const data=await cached('jobicy',()=>fetchJson('https://jobicy.com/api/v2/remote-jobs?count=200'));return (Array.isArray(data.jobs)?data.jobs:[]).map(normalizeJobicy)}));
-    tasks.push(track('Remotive',async()=>{const data=await cached('remotive',()=>fetchJson('https://remotive.com/api/remote-jobs?limit=100'));return (Array.isArray(data.jobs)?data.jobs:[]).map(normalizeRemotive)}));
-  }
+  tasks.push(collectRemote(settings,httpTools).then(results=>{for(const {jobs,stat} of results){all.push(...jobs);sourceStats.push(stat);if(stat.received||stat.errors.length<stat.queries)sources.push(stat.source);if(stat.errors.length)failures.push(`${stat.source}: ${stat.errors.slice(0,2).join('; ')}`)}}).catch(error=>failures.push(`Fontes remotas: ${error.message}`)));
   if((settings.onsite||settings.hybrid)&&/feira de santana/i.test(settings.jobCity||''))tasks.push(track('SineBahia',async()=>normalizeSineBahia(await cached('sinebahia',()=>fetchText(sineBahiaUrl)))));
   tasks.push(collectApis(settings,httpTools,state.integrations||{}).then(results=>{for(const {jobs,stat} of results){all.push(...jobs);sourceStats.push(stat);if(stat.received||stat.errors.length<stat.queries)sources.push(stat.source);if(stat.errors.length)failures.push(`${stat.source}: ${stat.errors.slice(0,2).join('; ')}`)}}).catch(error=>failures.push(`Fontes com chave: ${error.message}`)));
   for(const m of state.manualJobs||[])all.push({...m});
@@ -175,7 +187,7 @@ async function collect(settings){
   const cutoff=Date.now()-90*86400000;
   for(const [id,entry] of Object.entries(state.seen))if(Date.parse(entry.lastSeenAt)<cutoff)delete state.seen[id];
 
-  const excluded={incompleta:0,restrita:0,semData:0,foraDoPrazo:0,senioridade:0,local:0,area:0,duplicada:0,jaDecidida:0,compatibilidade:0};
+  const excluded={incompleta:0,restrita:0,semData:0,foraDoPrazo:0,senioridade:0,local:0,exterior:0,area:0,duplicada:0,jaDecidida:0,compatibilidade:0};
   // Vagas em que a pessoa já se candidatou ou que descartou não voltam, nem pelo mesmo anúncio em outra fonte.
   const closedIds=new Set(),closedKeys=new Set();
   for(const [id,d] of Object.entries(state.decisions||{}))if(d.status==='applied'||d.status==='rejected'){closedIds.add(id);if(d.key)closedKeys.add(d.key)}
@@ -183,7 +195,7 @@ async function collect(settings){
   const ageLimit=(maxAgeDays||3650)*86400000;
   const recentCount=all.filter(job=>job.publishedAt&&Number.isFinite(Date.parse(job.publishedAt))&&Date.now()-Date.parse(job.publishedAt)<=ageLimit&&Date.now()-Date.parse(job.publishedAt)>= -86400000).length;
   // Fontes de origem primeiro; agregadores por último, para que a vaga agrupada aponte para onde ela nasceu.
-  const aggregatorRank=j=>(['Google Vagas','Adzuna','Jooble','Jobicy','Remotive'].includes(j.source)?1:0);
+  const aggregatorRank=j=>(['Google Vagas','Adzuna','Jooble','Jobicy','Remotive','Himalayas','RemoteOK','Working Nomads'].includes(j.source)?1:0);
   all.sort((a,b)=>aggregatorRank(a)-aggregatorRank(b));
   const catalog=[];const groups=new Map();
   for(const job of all){
@@ -202,7 +214,7 @@ async function collect(settings){
   const localMin=Math.max(0,Math.min(100,Number(settings.localMinMatch??40)))/100;
   const jobs=[];
   for(const job of groups.values()){
-    const full={...job,fitLabel:job.fit==='boa'?'Boa correspondência':'Possível correspondência',titlePt:portugueseTitle(job.title),overviewPt:portugueseOverview(job),...assess(job,job.fit)};
+    const full={...job,region:jobRegion(job),fitLabel:job.fit==='boa'?'Boa correspondência':'Possível correspondência',titlePt:jobRegion(job)==='exterior'?tidyTitle(job.title):portugueseTitle(job.title),overviewPt:portugueseOverview(job),...assess(job,job.fit)};
     const remote=full.workplace==='remote'||(full.remote&&!full.workplace);
     let ok=true;
     if(remote){
@@ -217,7 +229,7 @@ async function collect(settings){
   for(const stat of sourceStats){stat.recommended=jobs.filter(j=>j.source===stat.source).length}
   const kept=jobs.slice(0,400);
   return {jobs:kept,sources,failures,excluded,scanned:all.length,recentCount,maxAgeDays,searchedAt:runAt,sourceStats,catalog,
-    counts:{boa:kept.filter(j=>j.fit==='boa').length,possivel:kept.filter(j=>j.fit==='possivel').length,novas:kept.filter(j=>j.isNew).length},
+    counts:{boa:kept.filter(j=>j.fit==='boa').length,possivel:kept.filter(j=>j.fit==='possivel').length,novas:kept.filter(j=>j.isNew).length,remotoBrasil:kept.filter(j=>j.region==='brasil').length,exterior:kept.filter(j=>j.region==='exterior').length,local:kept.filter(j=>j.region==='local').length},
     notConnected:['LinkedIn','Indeed','Glassdoor','InfoJobs','Catho']};
 }
 
@@ -283,7 +295,7 @@ async function greenhouseQuestions(externalId){
 async function bodyJson(req){let body='';for await(const chunk of req){body+=chunk;if(body.length>200000)throw Error('Dados excessivos')}return JSON.parse(body||'{}')}
 function reply(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data))}
 // ---------- Clientes (campanhas e empresas) ----------
-function emailPublic(){const k=state.integrations||{};return {user:k.gmailUser||'',configured:!!(k.gmailUser&&k.gmailPass),senderName:k.senderName||'',senderTitle:k.senderTitle||'',senderPhone:k.senderPhone||'',senderSite:k.senderSite||'',dailyLimit:k.dailyLimit||20,sentToday:emailsSentToday()}}
+function emailPublic(){const k=state.integrations||{};return {user:k.gmailUser||'',configured:!!(k.gmailUser&&k.gmailPass),senderName:k.senderName||'',senderTitle:k.senderTitle||'',senderPhone:k.senderPhone||'',senderSite:k.senderSite||'',alertEmail:k.alertEmail||'',digestEnabled:k.digestEnabled!==false,digestHour:k.digestHour??5,lastDigestAt:state.lastDigestAt||null,dailyLimit:k.dailyLimit||20,sentToday:emailsSentToday()}}
 function emailsSentToday(){const day=new Date().toLocaleDateString('pt-BR',{timeZone:'America/Bahia'});return (state.emailLog||[]).filter(e=>new Date(e.at).toLocaleDateString('pt-BR',{timeZone:'America/Bahia'})===day).length}
 function senderInfo(){const k=state.integrations||{};const p=state.profile||{};const nameParts=String(p.name||'').split(/\s+/).filter(w=>w.length>2&&!/^(de|da|do|dos|das)$/i.test(w));return {name:k.senderName||(nameParts.length?`${nameParts[0]} ${nameParts.at(-1)}`:'Daniel'),title:k.senderTitle||'',phone:k.senderPhone||p.phone||'',site:k.senderSite||p.portfolio||''}}
 function jobCatalogForSignals(){const cat=(state.latest?.catalog||[]).map(c=>({title:c.title,company:c.company,source:c.source,url:c.url}));for(const j of state.latest?.jobs||[])cat.push({title:j.title,company:j.company,source:j.source,url:j.sourceUrl});return cat}
@@ -374,17 +386,89 @@ async function leadsApi(req,res,url){
 
 // ---------- Publicações ----------
 function aiPublic(){const c=aiConfig(state.integrations);return {configured:!!c.key,baseUrl:c.baseUrl,model:c.model,fastModel:c.fastModel,defaults:AI_DEFAULTS}}
-function postsPublic(){const P=state.posts;return {items:P.items,voice:{...DEFAULT_VOICE,...P.voice},interview:P.interview,stories:P.stories,diary:P.diary.slice(-12),lastPlanAt:P.lastPlanAt||null,questions:{interview:INTERVIEW,checkin:CHECKIN},pillars:PILLARS,dayNames:DAY_NAMES,ai:aiPublic(),pexels:!!state.integrations?.pexelsKey,photoProvider:state.integrations?.pexelsKey?photoProvider(state.integrations.pexelsKey):null,email:emailPublic(),signals:marketSignals(state)}}
+function linkedinStatus(){const l=state.linkedin;const c=l.connection;return {configured:!!(l.clientId&&l.clientSecret),connected:!!(c?.token&&Date.parse(c.expiresAt)>Date.now()+300000),name:c?.name||null,expiresAt:c?.expiresAt||null,autoPublish:!!l.autoPublish,redirectUri:`${publicUrl}${LINKEDIN_CALLBACK}`}}
+function postsPublic(){const P=state.posts;return {items:P.items,voice:{...DEFAULT_VOICE,...P.voice},interview:P.interview,stories:P.stories,diary:P.diary.slice(-12),lastPlanAt:P.lastPlanAt||null,questions:{interview:INTERVIEW,checkin:CHECKIN},pillars:PILLARS,dayNames:DAY_NAMES,ai:aiPublic(),pexels:!!state.integrations?.pexelsKey,photoProvider:state.integrations?.pexelsKey?photoProvider(state.integrations.pexelsKey):null,email:emailPublic(),linkedin:linkedinStatus(),signals:marketSignals(state)}}
+const publishingPosts=new Set();
+function imagePath(post){return join(dataDir,'post-images',`${createHash('sha256').update(post.id).digest('hex')}.bin`)}
+async function bodyBytes(req,max=10*1024*1024){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>max)throw Error('Imagem maior que 10 MB.');chunks.push(chunk)}return Buffer.concat(chunks)}
+function imageMime(bytes){if(bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return 'image/png';if(bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'image/jpeg';throw Error('Use uma imagem PNG ou JPEG.')}
+async function imageForPost(post){
+  const img=post.image||{};
+  if(img.uploadedKind===img.kind&&img.uploadedAt){const bytes=await readFile(imagePath(post));return {bytes,mime:imageMime(bytes),alt:img.cardTitle||post.hook||'Imagem do post'}}
+  if(img.kind==='photo'&&img.chosen?.large){
+    const source=new URL(img.chosen.large);
+    const allowed=new Set(['images.pexels.com','cdn.pixabay.com','pixabay.com']);
+    if(source.protocol!=='https:'||!allowed.has(source.hostname))throw Error('Escolha uma foto do Pixabay ou Pexels na tela do post.');
+    const response=await fetch(source,{signal:AbortSignal.timeout(20000)});
+    if(!response.ok||!allowed.has(new URL(response.url).hostname))throw Error('Não consegui baixar a foto escolhida. Escolha outra imagem.');
+    if(Number(response.headers.get('content-length'))>10*1024*1024)throw Error('A foto escolhida é maior que 10 MB.');
+    const bytes=Buffer.from(await response.arrayBuffer());if(bytes.length>10*1024*1024)throw Error('A foto escolhida é maior que 10 MB.');
+    return {bytes,mime:imageMime(bytes),alt:img.chosen.alt||post.hook||'Foto do post'};
+  }
+  throw Error(img.kind==='card'?'Salve o card antes de publicar automaticamente.':'Escolha ou envie a imagem deste post antes da publicação automática.');
+}
+async function publishApprovedPost(post,{retry=false}={}){
+  if(post.status!=='approved')throw Error('Aprove o post antes de publicar.');
+  if(!post.humanApprovedAt)throw Error('Confirme pessoalmente este post no Radar antes de publicá-lo no LinkedIn.');
+  if(post.linkedinUrn)throw Error('Este post já foi enviado ao LinkedIn.');
+  if(post.linkedinAttemptedAt&&!retry)throw Error('Já houve uma tentativa de publicação. Verifique seu perfil antes de tentar novamente.');
+  if(publishingPosts.has(post.id))throw Error('Este post já está sendo enviado.');
+  const l=state.linkedin;if(!linkedinStatus().connected)throw Error('Conecte o LinkedIn novamente em Meu perfil.');
+  const image=await imageForPost(post);
+  publishingPosts.add(post.id);
+  try{
+    post.linkedinAttemptedAt=new Date().toISOString();post.linkedinError=null;await persistState();
+    const result=await publishMemberPost({token:openToken(l.connection.token,dataDir),sub:l.connection.sub,text:post.text,image});
+    post.linkedinUrn=result.urn;post.linkedinUrl=result.url;post.status='published';post.publishedAt=new Date().toISOString();post.updatedAt=post.publishedAt;
+    post.history=(post.history||[]).concat({at:post.publishedAt,event:'Publicado no LinkedIn'});await persistState();return result;
+  }catch(e){post.linkedinError=String(e.message||e).slice(0,300);post.history=(post.history||[]).concat({at:new Date().toISOString(),event:`Publicação não confirmada: ${post.linkedinError}`});await persistState();throw e}
+  finally{publishingPosts.delete(post.id)}
+}
+async function linkedinApi(req,res,url){
+  const l=state.linkedin;
+  if(url.pathname==='/api/linkedin/status'&&req.method==='GET')return reply(res,200,linkedinStatus());
+  if(url.pathname==='/api/linkedin/app'&&req.method==='POST'){
+    const d=await bodyJson(req);const id=String(d.clientId||'').trim(),secret=String(d.clientSecret||'').trim();
+    if(!/^[A-Za-z0-9_-]{5,200}$/.test(id)||secret.length<8||secret.length>300)return reply(res,400,{error:'Informe o Client ID e o Client Secret do aplicativo LinkedIn.'});
+    l.clientId=id;l.clientSecret=secret;l.connection=null;l.pending=null;l.autoPublish=false;await persistState();return reply(res,200,linkedinStatus());
+  }
+  if(url.pathname==='/api/linkedin/start'&&req.method==='GET'){
+    if(!linkedinStatus().configured)return reply(res,409,{error:'Cadastre o aplicativo LinkedIn em Meu perfil primeiro.'});
+    const nonce=randomBytes(24).toString('base64url');l.pending={nonce,session:req.session.id,expiresAt:Date.now()+10*60000};await persistState();
+    res.writeHead(302,{Location:authorizationUrl({clientId:l.clientId,redirectUri:`${publicUrl}${LINKEDIN_CALLBACK}`,state:nonce}),'Cache-Control':'no-store'});res.end();return true;
+  }
+  if(url.pathname===LINKEDIN_CALLBACK&&req.method==='GET'){
+    const pending=l.pending;l.pending=null;await persistState();
+    if(!pending||pending.expiresAt<Date.now()||pending.session!==req.session.id||pending.nonce!==url.searchParams.get('state'))return reply(res,400,{error:'Autorização expirada ou inválida. Volte ao Radar e tente conectar novamente.'});
+    if(url.searchParams.has('error')){res.writeHead(302,{Location:'/?linkedin=cancelled','Cache-Control':'no-store'});res.end();return true}
+    const code=url.searchParams.get('code');if(!code)return reply(res,400,{error:'O LinkedIn não devolveu o código de autorização.'});
+    try{
+      const token=await exchangeCode({clientId:l.clientId,clientSecret:l.clientSecret,redirectUri:`${publicUrl}${LINKEDIN_CALLBACK}`,code});
+      const info=await memberInfo(token.access_token);
+      l.connection={token:sealToken(token.access_token,dataDir),sub:info.sub,name:info.name,picture:info.picture,connectedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+Math.min(60*86400,Number(token.expires_in)||3600)*1000).toISOString()};
+      l.autoPublish=false;await persistState();res.writeHead(302,{Location:'/?linkedin=connected','Cache-Control':'no-store'});res.end();return true;
+    }catch(e){console.error('Conexão LinkedIn:',e.message);return reply(res,502,{error:e.message})}
+  }
+  if(url.pathname==='/api/linkedin/auto'&&req.method==='POST'){
+    const d=await bodyJson(req);if(d.enabled&&!linkedinStatus().connected)return reply(res,409,{error:'Conecte sua conta do LinkedIn primeiro.'});
+    l.autoPublish=!!d.enabled;await persistState();return reply(res,200,linkedinStatus());
+  }
+  if(url.pathname==='/api/linkedin/disconnect'&&req.method==='POST'){
+    l.connection=null;l.pending=null;l.autoPublish=false;await persistState();return reply(res,200,linkedinStatus());
+  }
+  return false;
+}
 function cleanVoice(d){
   const v={...DEFAULT_VOICE,...state.posts.voice};
-  for(const f of ['goal','market','language','audience','time','tone','depth','length','emojis','avoid','examples','cta','imagePreference','updatedAt'])if(typeof d[f]==='string')v[f]=d[f].slice(0,f==='examples'?4000:600);
+  for(const f of ['goal','market','language','audience','time','tone','depth','length','emojis','avoid','examples','cta','imagePreference','editorialGuidance','updatedAt'])if(typeof d[f]==='string')v[f]=d[f].slice(0,f==='examples'?4000:600);
   for(const f of ['postsPerWeek','hashtags','callEvery'])if(d[f]!==undefined)v[f]=Math.max(0,Math.min(f==='postsPerWeek'?7:10,Number(d[f])||0));
-  if(Array.isArray(d.days))v.days=d.days.map(String).filter(x=>/^[0-6]$/.test(x));
+  if(Array.isArray(d.sequence))v.sequence=d.sequence.map(String).filter(x=>['emprego','clientes',...PILLARS.map(p=>p.key)].includes(x)).slice(0,7);
+ if(Array.isArray(d.days))v.days=d.days.map(String).filter(x=>/^[0-6]$/.test(x));
   if(Array.isArray(d.pillars))v.pillars=d.pillars.map(String).filter(x=>PILLARS.some(p=>p.key===x));
   for(const f of ['autoPlan','autoApprove','remindEmail'])if(d[f]!==undefined)v[f]=!!d[f];
   return v;
 }
-let planning=false;
+let planning=false,planningJob=null;
 async function postsApi(req,res,url){
   const P=state.posts;const parts=url.pathname.split('/').filter(Boolean);
   const cfg=aiConfig(state.integrations);
@@ -416,34 +500,60 @@ async function postsApi(req,res,url){
     P.diary.push(entry);P.diary=P.diary.slice(-60);await persistState();return reply(res,200,{entry})
   }
   if(parts[2]==='stories'&&parts[3]&&req.method==='POST'){const s=P.stories.find(x=>x.id===parts[3]);if(!s)return reply(res,404,{error:'História não encontrada'});const d=await bodyJson(req);if(d.archived!==undefined)s.archived=!!d.archived;await persistState();return reply(res,200,{story:s})}
+  if(parts[2]==='plan-status'&&req.method==='GET')return reply(res,200,planningJob||{status:'idle'});
   if(parts[2]==='plan'&&req.method==='POST'){
     const d=await bodyJson(req);if(d.profile&&typeof d.profile==='object')state.profile=d.profile;
     if(planning)return reply(res,409,{error:'O Radar já está escrevendo os posts. Aguarde um instante.'});
-    planning=true;try{const r=await planWeek(cfg,state,{count:d.count});await persistState();return reply(res,200,{...r,items:P.items})}
-    catch(e){return reply(res,502,{error:e.message})}finally{planning=false}
+    planning=true;planningJob={status:'running',phase:'images',created:0,updated:0,errors:[],startedAt:new Date().toISOString()};
+    void (async()=>{
+      try{
+        const photoKey=state.integrations?.pexelsKey;
+        for(const post of P.items.filter(x=>x.status==='draft'&&!x.image?.chosen&&Date.parse(x.scheduledFor)>Date.now()-86400000)){
+          if(!photoKey)break;
+          try{if(await choosePostPhoto(post,photoKey,httpTools,{otherPosts:P.items})){planningJob.updated++;await persistState()}}
+          catch(e){planningJob.errors.push(`Imagem: ${e.message}`)}
+        }
+        planningJob.phase='writing';
+        const result=await planWeek(cfg,state,{count:Math.max(1,Math.min(7,Number(d.count)||Number(P.voice.postsPerWeek)||3)),manual:true,topics:Array.isArray(d.topics)?d.topics.slice(0,7):[],photoKey,http:httpTools,onPost:async()=>{planningJob.created++;await persistState()}});
+        await persistState();planningJob={...planningJob,status:'done',errors:planningJob.errors.concat(result.errors),note:result.note||null,finishedAt:new Date().toISOString()};
+      }catch(e){planningJob={...planningJob,status:'error',errors:planningJob.errors.concat(e.message),finishedAt:new Date().toISOString()};console.error('Planejamento dos posts:',e.message)}
+      finally{planning=false}
+    })();
+    return reply(res,202,{status:'running'});
   }
   if(parts[2]==='compare'&&req.method==='POST'){
     const d=await bodyJson(req);const models=(d.models||[]).slice(0,6);const voice={...DEFAULT_VOICE,...P.voice};
     const story=P.stories.find(s=>s.id===d.storyId)||P.stories.find(s=>s.pillar==='prova')||P.stories[0]||null;
     // Um modelo por vez: o plano Go recusa (erro 500) quando vários pedidos pesados chegam juntos.
-    const results=[];for(const m of models){const t0=Date.now();try{const w=await writePost(cfg,{voice,profile:state.profile,pillar:story?.pillar||'historia',story,signals:marketSignals(state),language:voice.language==='en'?'en':'pt',model:m});results.push({model:m,text:w.text,ms:Date.now()-t0})}catch(e){results.push({model:m,error:e.message,ms:Date.now()-t0})}}
+    const results=[];for(const m of models){const t0=Date.now();try{const w=await writePost(cfg,{voice,interview:P.interview,profile:state.profile,pillar:story?.pillar||'historia',story,signals:marketSignals(state),language:voice.language==='en'?'en':'pt',model:m});results.push({model:m,text:w.text,ms:Date.now()-t0})}catch(e){results.push({model:m,error:e.message,ms:Date.now()-t0})}}
     return reply(res,200,{story,results});
   }
   const post=P.items.find(x=>x.id===parts[2]);
   if(!post)return reply(res,404,{error:'Post não encontrado'});
   const now=new Date().toISOString();
+  if(parts[3]==='image'&&req.method==='POST'){
+    try{const bytes=await bodyBytes(req);const mime=imageMime(bytes);await mkdir(join(dataDir,'post-images'),{recursive:true,mode:0o700});await writeFile(imagePath(post),bytes,{mode:0o600});post.image||={};post.image.uploadedKind=post.image.kind;post.image.uploadedAt=now;post.image.uploadedMime=mime;if(post.status==='approved'){post.status='draft';post.humanApprovedAt=null}await persistState();return reply(res,200,{post})}
+    catch(e){return reply(res,400,{error:e.message})}
+  }
+  if(parts[3]==='publish-now'&&req.method==='POST'){
+    try{const d=await bodyJson(req);const result=await publishApprovedPost(post,{retry:d.retry===true});return reply(res,200,{post,result})}
+    catch(e){return reply(res,409,{error:e.message,post})}
+  }
   if(parts.length===3&&req.method==='DELETE'){P.items=P.items.filter(x=>x!==post);await persistState();return reply(res,200,{ok:true})}
   if(parts.length===3&&req.method==='POST'){
     const d=await bodyJson(req);
+    // Mudar texto ou imagem exige nova aprovação; mudar só o horário mantém o post aprovado.
+    if(post.status==='approved'&&d.status!=='approved'&&((typeof d.text==='string'&&d.text!==post.text)||(d.image&&Object.keys(d.image).some(k=>!['photoQuery'].includes(k))))){post.status='draft';post.humanApprovedAt=null}
     if(typeof d.text==='string'){post.text=d.text.slice(0,3000);post.editedAt=now}
-    if(d.status&&['draft','approved','published','skipped'].includes(d.status)&&d.status!==post.status){post.status=d.status;post.history=(post.history||[]).concat({at:now,event:{draft:'Voltou para rascunho',approved:'Aprovado',published:'Publicado',skipped:'Descartado'}[d.status]});if(d.status==='published')post.publishedAt=now}
+    if(d.status&&['draft','approved','published','skipped'].includes(d.status)&&d.status!==post.status){post.status=d.status;post.history=(post.history||[]).concat({at:now,event:{draft:'Voltou para rascunho',approved:'Aprovado',published:'Publicado',skipped:'Descartado'}[d.status]});if(d.status==='approved')post.humanApprovedAt=now;else post.humanApprovedAt=null;if(d.status==='published')post.publishedAt=now}
+    if(d.status==='approved'&&!post.humanApprovedAt){post.humanApprovedAt=now;post.history=(post.history||[]).concat({at:now,event:'Aprovação manual confirmada'})}
     if(d.scheduledFor&&!Number.isNaN(Date.parse(d.scheduledFor))){post.scheduledFor=new Date(d.scheduledFor).toISOString();post.remindedAt=null}
-    if(d.image&&typeof d.image==='object'){const img=post.image||(post.image={});for(const f of ['kind','printIdea','cardTitle','photoQuery'])if(typeof d.image[f]==='string')img[f]=d.image[f].slice(0,300);if(Array.isArray(d.image.cardLines))img.cardLines=d.image.cardLines.map(x=>String(x).slice(0,80)).slice(0,3);if(d.image.chosen===null||typeof d.image.chosen==='object')img.chosen=d.image.chosen?{id:d.image.chosen.id,large:String(d.image.chosen.large||''),thumb:String(d.image.chosen.thumb||''),author:String(d.image.chosen.author||''),page:String(d.image.chosen.page||''),provider:String(d.image.chosen.provider||'')}:null}
+    if(d.image&&typeof d.image==='object'){const img=post.image||(post.image={});if(d.image.kind!==undefined||d.image.cardTitle!==undefined||d.image.cardLines!==undefined||d.image.chosen!==undefined||d.image.style!==undefined){img.uploadedAt=null;img.uploadedKind=null}for(const f of ['kind','printIdea','cardTitle','photoQuery'])if(typeof d.image[f]==='string')img[f]=d.image[f].slice(0,300);if(['contrast','editorial','minimal'].includes(d.image.style))img.style=d.image.style;if(Array.isArray(d.image.cardLines))img.cardLines=d.image.cardLines.map(x=>String(x).slice(0,80)).slice(0,3);if(d.image.chosen===null||typeof d.image.chosen==='object'){img.chosen=d.image.chosen?{id:d.image.chosen.id,large:String(d.image.chosen.large||''),thumb:String(d.image.chosen.thumb||''),author:String(d.image.chosen.author||''),page:String(d.image.chosen.page||''),provider:String(d.image.chosen.provider||'')}:null;img.autoSelected=false}}
     post.updatedAt=now;await persistState();return reply(res,200,{post});
   }
   if(parts[3]==='rewrite'&&req.method==='POST'){
     const d=await bodyJson(req);const voice={...DEFAULT_VOICE,...P.voice};
-    try{const w=await writePost(cfg,{voice,profile:state.profile,pillar:post.pillar,story:P.stories.find(s=>s.id===post.storyId)||null,signals:marketSignals(state),language:post.language,instruction:String(d.instruction||'').slice(0,500),previous:post.text,model:d.model||undefined});
+    try{const w=await writePost(cfg,{voice,interview:P.interview,profile:state.profile,pillar:post.pillar,story:P.stories.find(s=>s.id===post.storyId)||null,signals:marketSignals(state),language:post.language,instruction:String(d.instruction||'').slice(0,500),previous:post.text,model:d.model||undefined});
       Object.assign(post,{text:w.text,hook:w.hook,image:{...w.image,chosen:null},factsUsed:w.factsUsed,model:w.model,updatedAt:now});post.history=(post.history||[]).concat({at:now,event:`Reescrito${d.instruction?`: ${String(d.instruction).slice(0,80)}`:''}`});await persistState();return reply(res,200,{post})}
     catch(e){return reply(res,502,{error:e.message})}
   }
@@ -453,6 +563,58 @@ async function postsApi(req,res,url){
   }
   return false;
 }
+// ---------- Resumo diário por e-mail (padrão: 5h, horário da Bahia) ----------
+const bahiaDay=(d=new Date())=>d.toLocaleDateString('en-CA',{timeZone:'America/Bahia'});
+const bahiaHour=(d=new Date())=>Number(d.toLocaleString('en-US',{hour:'numeric',hourCycle:'h23',timeZone:'America/Bahia'}));
+function buildDigest(){
+  const latest=state.latest||{jobs:[]};const closed=new Set(Object.entries(state.decisions||{}).filter(([,d])=>d.status==='applied'||d.status==='rejected').map(([id])=>id));
+  const jobs=(latest.jobs||[]).filter(j=>!closed.has(j.externalId));
+  const fresh=jobs.filter(j=>j.isNew||Date.now()-Date.parse(j.firstSeenAt||0)<26*3600000);
+  const by=r=>jobs.filter(j=>j.region===r).length;
+  const rank=(a,b)=>(a.fit===b.fit?0:a.fit==='boa'?-1:1)||((b.isNew?1:0)-(a.isNew?1:0))||(b.score||0)-(a.score||0);
+  const top=[...jobs].sort(rank).slice(0,8);
+  const P=state.posts||{items:[]};const today=bahiaDay();
+  const drafts=P.items.filter(x=>x.status==='draft');
+  const todayPosts=P.items.filter(x=>['draft','approved'].includes(x.status)&&bahiaDay(new Date(x.scheduledFor))===today);
+  const leads=Object.values(state.leads||{});const newLeads=leads.filter(l=>l.status==='new');
+  const follow=leads.filter(l=>l.followUpAt&&['contacted','replied','meeting','proposal'].includes(l.status)&&bahiaDay(new Date(l.followUpAt))<=today);
+  const url=process.env.RADAR_PUBLIC_URL||state.publicUrl||`http://localhost:${port}`;
+  const name=String(state.profile?.name||'').split(/\s+/)[0]||'';
+  const regionLabel={brasil:'remoto no Brasil',exterior:'fora do Brasil',local:'na sua cidade'};
+  const period=Number(latest.maxAgeDays)===1?'últimas 24 horas':latest.maxAgeDays?`últimos ${latest.maxAgeDays} dias`:'todas as abertas';
+  const lines=[`Bom dia${name?`, ${name}`:''}! Aqui está o que o Radar preparou para hoje.`,'',
+    `VAGAS (${period}) — ${jobs.length} para você olhar${fresh.length?`, ${fresh.length} novas desde ontem`:''}`,
+    `Remoto no Brasil: ${by('brasil')} · Fora do Brasil: ${by('exterior')} · Na sua cidade: ${by('local')}`];
+  if(top.length){lines.push('','Destaques:');for(const j of top)lines.push(`• ${j.titlePt||j.title} — ${j.company} (${regionLabel[j.region]||j.location})${j.fit==='boa'?' · boa correspondência':''}${j.isNew?' · nova':''}`,`  ${j.sourceUrl}`)}
+  else lines.push('Nenhuma vaga nova dentro dos seus filtros hoje.');
+  lines.push('',`PUBLICAÇÕES — ${drafts.length} ${drafts.length===1?'post esperando':'posts esperando'} sua aprovação.`);
+  for(const x of todayPosts)lines.push(`• Hoje às ${new Date(x.scheduledFor).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Bahia'})}: ${x.hook||x.text.split('\n')[0]}${x.status==='draft'?' (ainda não aprovado)':''}`);
+  lines.push('',`CLIENTES — ${newLeads.length} ${newLeads.length===1?'empresa':'empresas'} para contatar${follow.length?` e ${follow.length} ${follow.length===1?'retorno':'retornos'} para hoje`:''}.`);
+  lines.push('',`Abrir o Radar: ${url}`,'','— Radar');
+  const subject=`Radar · ${new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',timeZone:'America/Bahia'})}: ${jobs.length} ${jobs.length===1?'vaga':'vagas'}, ${drafts.length} ${drafts.length===1?'post':'posts'}, ${newLeads.length} ${newLeads.length===1?'cliente':'clientes'}`;
+  return {subject,text:lines.join('\n'),counts:{jobs:jobs.length,fresh:fresh.length,brasil:by('brasil'),exterior:by('exterior'),local:by('local'),drafts:drafts.length,leads:newLeads.length,followUps:follow.length}};
+}
+async function sendDigest({force=false}={}){
+  const k=state.integrations||{};
+  if(!k.gmailUser||!k.gmailPass)throw Error('Configure o Gmail em Meu perfil › E-mail para prospecção.');
+  if(!force&&k.digestEnabled===false)return {skipped:'desligado'};
+  const d=buildDigest();
+  await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:'Radar',to:k.alertEmail||k.gmailUser,subject:d.subject,text:d.text});
+  state.lastDigestAt=new Date().toISOString();if(!force)state.lastDigestDay=bahiaDay();await persistState();
+  return {ok:true,to:k.alertEmail||k.gmailUser,counts:d.counts};
+}
+let digestBusy=false;
+async function digestTick(){
+  const k=state.integrations||{};
+  if(digestBusy||k.digestEnabled===false||!k.gmailUser||!k.gmailPass)return;
+  if(state.lastDigestDay===bahiaDay()||bahiaHour()<(k.digestHour??5))return;
+  digestBusy=true;
+  try{
+    // Garante que a busca do dia já rodou antes de mandar o resumo.
+    if(state.settings&&bahiaDay(new Date(state.latest?.searchedAt||0))!==bahiaDay())await dailyRun();
+    const r=await sendDigest();console.log(`Resumo diário enviado para ${r.to}`);
+  }catch(e){console.error('Resumo diário falhou:',e.message)}finally{digestBusy=false}
+}
 // Automação: planeja a semana sozinho e manda lembrete por e-mail na hora de cada post.
 async function postsTick(){
   const P=state.posts;const voice={...DEFAULT_VOICE,...P.voice};const cfg=aiConfig(state.integrations);const k=state.integrations||{};
@@ -461,15 +623,21 @@ async function postsTick(){
       const soon=P.items.filter(x=>['draft','approved'].includes(x.status)&&Date.parse(x.scheduledFor)>Date.now()&&Date.parse(x.scheduledFor)<Date.now()+8*86400000).length;
       if(soon<(Number(voice.postsPerWeek)||3)){
         planning=true;
-        try{const r=await planWeek(cfg,state,{});await persistState();console.log(`Publicações: ${r.created.length} posts planejados${r.errors.length?` (${r.errors.length} com erro)`:''}`);
-          if(r.created.length&&voice.remindEmail&&k.gmailUser&&k.gmailPass){const list=r.created.map(p=>`• ${new Date(p.scheduledFor).toLocaleString('pt-BR',{timeZone:'America/Bahia',weekday:'long',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}: ${p.hook||p.text.split('\n')[0]}`).join('\n');await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:'Radar',to:k.gmailUser,subject:`Seus ${r.created.length} posts da semana estão prontos`,text:`O Radar escreveu os posts da próxima semana:\n\n${list}\n\n${voice.autoApprove?'Eles já estão aprovados; você recebe cada um por e-mail na hora de publicar.':'Revise e aprove em alguns minutos: http://localhost:'+port+'/#content'}\n\n— Radar`}).catch(e=>console.error('E-mail da pauta falhou:',e.message))}
+        try{const r=await planWeek(cfg,state,{photoKey:k.pexelsKey,http:httpTools,onPost:async()=>persistState()});await persistState();console.log(`Publicações: ${r.created.length} posts planejados${r.errors.length?` (${r.errors.length} com erro)`:''}`);
+          if(r.created.length&&voice.remindEmail&&k.gmailUser&&k.gmailPass){const list=r.created.map(p=>`• ${new Date(p.scheduledFor).toLocaleString('pt-BR',{timeZone:'America/Bahia',weekday:'long',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}: ${p.hook||p.text.split('\n')[0]}`).join('\n');await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:'Radar',to:k.alertEmail||k.gmailUser,subject:`Seus ${r.created.length} posts da próxima semana estão prontos`,text:`O Radar escreveu os posts da próxima semana:\n\n${list}\n\n${voice.autoApprove?'Eles já estão aprovados; você recebe cada um por e-mail na hora de publicar.':'Revise e aprove em alguns minutos: '+publicUrl+'/#content'}\n\n— Radar`}).catch(e=>console.error('E-mail da pauta falhou:',e.message))}
         }finally{planning=false}
+      }
+    }
+    if(state.linkedin.autoPublish&&linkedinStatus().connected){
+      for(const post of P.items.filter(x=>x.status==='approved'&&x.humanApprovedAt&&!x.linkedinAttemptedAt&&Date.parse(x.scheduledFor)<=Date.now()&&Date.now()-Date.parse(x.scheduledFor)<36*3600000)){
+        try{await publishApprovedPost(post);console.log(`Publicação LinkedIn concluída: ${post.id}`)}
+        catch(e){if(post.linkedinError!==e.message){post.linkedinError=String(e.message).slice(0,300);await persistState()}console.error(`Publicação LinkedIn ${post.id}: ${e.message}`)}
       }
     }
     if(voice.remindEmail&&k.gmailUser&&k.gmailPass){
       for(const post of P.items.filter(x=>x.status==='approved'&&!x.remindedAt&&Date.parse(x.scheduledFor)<=Date.now()&&Date.now()-Date.parse(x.scheduledFor)<36*3600000)){
-        const m=reminderEmail(post,{localUrl:`http://localhost:${port}/#content`});
-        try{await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:'Radar',to:k.gmailUser,subject:m.subject,text:m.text});post.remindedAt=new Date().toISOString();post.history=(post.history||[]).concat({at:post.remindedAt,event:'Lembrete enviado por e-mail'});await persistState()}
+        const m=reminderEmail(post,{localUrl:`${publicUrl}/#content`});
+        try{await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:'Radar',to:k.alertEmail||k.gmailUser,subject:m.subject,text:m.text});post.remindedAt=new Date().toISOString();post.history=(post.history||[]).concat({at:post.remindedAt,event:'Lembrete enviado por e-mail'});await persistState()}
         catch(e){console.error('Lembrete de post falhou:',e.message)}
       }
     }
@@ -497,6 +665,9 @@ async function authRoutes(req,res,url){
     res.writeHead(302,{Location:`/entrar${p==='/'?'':`?volta=${encodeURIComponent(p+url.search)}`}`,'Cache-Control':'no-store'});res.end();return true;
   }
   req.session=session;
+  {const host=String(req.headers['x-forwarded-host']||req.headers.host||'');if(host&&!/^(localhost|127\.|\[::1\])/.test(host)){const u=`${isHttps(req)?'https':'http'}://${host}`;if(state.publicUrl!==u){state.publicUrl=u;persistState().catch(()=>{})}}}
+  if(p==='/api/digest/test'&&req.method==='POST'){try{const r=await sendDigest({force:true});return reply(res,200,r),true}catch(e){return reply(res,400,{error:e.message}),true}}
+  if(p==='/api/digest/preview'&&req.method==='GET')return reply(res,200,buildDigest()),true;
   if(p==='/api/auth/logout'&&req.method==='POST'){const d=await bodyJson(req);sendCookies(res,await auth.logout(req,{all:d.all||false}));return reply(res,200,{ok:true}),true}
   if(p==='/api/auth/password'&&req.method==='POST')return finishAuth(res,await auth.changePassword(req,await bodyJson(req)));
   if(p==='/api/auth/security'&&req.method==='GET')return reply(res,200,{user:session.user,twoFactor:auth.twoFactor(),emailReady:!!(state.integrations?.gmailUser&&state.integrations?.gmailPass),sessions:auth.sessions(req),events:auth.events(),https:isHttps(req),local:isLocal(req)}),true;
@@ -540,6 +711,9 @@ const server=http.createServer(async(req,res)=>{
       if(d.remove==='pexels'){delete k.pexelsKey}
       for(const f of ['aiBaseUrl','aiModel','aiFastModel'])if(typeof d[f]==='string')k[f]=d[f].trim().slice(0,200);
       for(const f of ['gmailUser','senderName','senderTitle','senderPhone','senderSite'])if(typeof d[f]==='string')k[f]=d[f].trim().slice(0,200);
+      if(typeof d.alertEmail==='string'){const v=d.alertEmail.trim();if(!v||/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v))k.alertEmail=v}
+      if(d.digestEnabled!==undefined)k.digestEnabled=!!d.digestEnabled;
+      if(d.digestHour!==undefined)k.digestHour=Math.max(0,Math.min(23,Number(d.digestHour)||5));
       if(d.dailyLimit!==undefined)k.dailyLimit=Math.max(1,Math.min(50,Number(d.dailyLimit)||20));
       if(d.serpapiBudget!==undefined)k.serpapiBudget=Math.max(1,Math.min(30,Number(d.serpapiBudget)||4));
       if(['senderName','senderTitle','senderPhone','senderSite'].some(f=>typeof d[f]==='string'))for(const l of Object.values(state.leads||{})){const c=state.campaigns.find(x=>x.id===l.campaignId);if(c&&!l.messagesEditedAt&&l.status==='new')l.messages=composeMessages(l,c,senderInfo())}
@@ -559,6 +733,7 @@ const server=http.createServer(async(req,res)=>{
       const fit=areaFit(job,state.settings||{})||'possivel';
       return reply(res,200,{ok:true,job:{...job,fit,fitLabel:fit==='boa'?'Boa correspondência':'Possível correspondência',titlePt:portugueseTitle(job.title),overviewPt:portugueseOverview(job),firstSeenAt:job.publishedAt,isNew:true,...assess(job,fit)}});
     }
+    if(url.pathname.startsWith('/api/linkedin/')){const handled=await linkedinApi(req,res,url);if(handled!==false)return}
     if(url.pathname.startsWith('/api/posts')||url.pathname.startsWith('/api/ai/')){const handled=await postsApi(req,res,url);if(handled!==false)return}
     if(url.pathname.startsWith('/api/leads')||url.pathname.startsWith('/api/campaigns')){const handled=await leadsApi(req,res,url);if(handled!==false)return}
     if(url.pathname==='/api/jobs/decision'&&req.method==='POST'){
@@ -584,7 +759,7 @@ const server=http.createServer(async(req,res)=>{
     const file=resolve(root,'.'+pathname);
     if(!file.startsWith(root+'\\')&&!file.startsWith(root+'/'))return reply(res,403,{error:'Acesso negado'});
     if(!['.html','.js','.css','.pdf'].includes(extname(file)))return reply(res,404,{error:'Arquivo não encontrado'});
-    const content=await readFile(file);res.writeHead(200,{'Content-Type':mime[extname(file)]});res.end(content);
+    const content=await readFile(file);res.writeHead(200,{'Content-Type':mime[extname(file)],'Cache-Control':'no-store'});res.end(content);
   }catch(error){reply(res,error.code==='ENOENT'?404:500,{error:error.message})}
 });
 dropOrphanLeads();
@@ -612,7 +787,7 @@ async function passwordCli(){
   process.exit(r.status===200?0:1);
 }
 if(process.argv.includes('--definir-senha'))await passwordCli();
-if(process.argv[1]===fileURLToPath(import.meta.url)){server.on('error',error=>{if(error.code==='EADDRINUSE'){console.error(`\nA porta ${port} já está em uso: outra janela do Radar (versão antiga) ainda está aberta.\nFeche essa janela ou use iniciar-radar.bat, que fecha a versão antiga automaticamente.\n`);process.exit(1)}throw error});server.listen(port,'127.0.0.1',()=>{console.log(`RadarDaniel em http://localhost:${port}`);if(!auth.hasUser())console.log('Primeiro acesso: abra http://localhost:'+port+' neste computador para criar seu usuário e senha.');scheduleDaily();setInterval(postsTick,10*60000).unref();setTimeout(postsTick,30000).unref();
+if(process.argv[1]===fileURLToPath(import.meta.url)){server.on('error',error=>{if(error.code==='EADDRINUSE'){console.error(`\nA porta ${port} já está em uso: outra janela do Radar (versão antiga) ainda está aberta.\nFeche essa janela ou use iniciar-radar.bat, que fecha a versão antiga automaticamente.\n`);process.exit(1)}throw error});server.listen(port,host,()=>{console.log(`RadarDaniel em http://${host}:${port}`);if(!auth.hasUser())console.log('Primeiro acesso: abra http://localhost:'+port+' neste computador para criar seu usuário e senha.');scheduleDaily();setInterval(postsTick,60000).unref();setInterval(digestTick,5*60000).unref();setTimeout(digestTick,60000).unref();setTimeout(postsTick,30000).unref();
   // Se o computador estava desligado na hora da busca diária, recupera ao ligar o servidor.
   const last=Date.parse(state.latest?.searchedAt||0);
   if(state.settings&&(!Number.isFinite(last)||Date.now()-last>20*3600000)){console.log('Última busca tem mais de 20 horas; buscando agora.');dailyRun()}

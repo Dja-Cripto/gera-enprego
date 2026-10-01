@@ -1,0 +1,63 @@
+name: radar
+
+services:
+  radar-panel:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: radar-panel:local
+    container_name: radar-panel
+    restart: unless-stopped
+    init: true
+    read_only: true
+    user: "1001:1001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=32m
+    volumes:
+      - ../data:/data
+    environment:
+      PORT: "8765"
+      HOST: "0.0.0.0"
+      RADAR_DATA_DIR: /data
+      RADAR_PUBLIC_URL: https://app-radar.setupdja.website
+      # A porta só aceita conexões do próprio servidor (túnel da Cloudflare); confiar no IP que a Cloudflare informa.
+      RADAR_TRUST_PROXY: "1"
+      TZ: America/Bahia
+    ports:
+      - "127.0.0.1:8765:8765"
+    mem_limit: 768m
+    cpus: 1.5
+    pids_limit: 96
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8765/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  radar-site:
+    image: nginx:alpine
+    container_name: radar-site
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/cache/nginx:rw,nosuid,nodev,size=16m
+      - /var/run:rw,nosuid,nodev,size=2m
+    volumes:
+      - ../site:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:8766:80"
+    mem_limit: 96m
+    cpus: 0.25
+    pids_limit: 32
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

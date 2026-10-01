@@ -122,3 +122,23 @@ Se o computador ou servidor estiver desligado à meia-noite, a busca é feita qu
 - https://portal.gupy.io/ (busca pública usada pelo portal: `/api/job-search/jobs`)
 - https://vagas.solides.com.br/ (busca pública usada pelo portal: `/api/vacancies`)
 - https://feiradesantana.ba.gov.br/servico.asp?id=32&link=casadotrabalhador/s14/informativo.asp
+
+## Versão 0.5: remoto, fora do Brasil e resumo diário
+- **Busca automática:** roda à meia-noite (horário da Bahia) com o período escolhido em Meu perfil. O padrão agora é **últimas 24 horas**. Ao abrir o Radar de manhã, as vagas já estão lá.
+- **Resumo diário por e-mail:** sai às 5h por padrão (dá para mudar para 6h, 7h ou 8h). Mostra:
+  - vagas para olhar, separadas em remoto no Brasil, fora do Brasil e na sua cidade;
+  - até 8 destaques com link;
+  - posts esperando aprovação e os que saem hoje;
+  - empresas para contatar e retornos do dia.
+
+  Se a busca da noite não tiver rodado, o Radar busca antes de enviar. O botão "Enviar um resumo agora" fica em Meu perfil › E-mail.
+- **Remoto no Brasil:**
+  - Google Vagas agora divide as buscas entre a cidade e o remoto ("home office").
+  - Novos termos para programação (desenvolvedor, front-end, back-end, full stack, React, Node, Python, Java, .NET, PHP, mobile, QA, DevOps).
+  - Comunidades brasileiras de vagas no GitHub (frontendbr, backend-br, react-brasil, androiddevbr, qa-brasil, soujava, phpdevbr, dotnetdevbr, pythonbrasil). Só entram quando os cargos são de desenvolvimento.
+- **Fora do Brasil (nova modalidade):**
+  - Fontes: Remotive (por termo), Jobicy (geral e LATAM), Himalayas, RemoteOK e Working Nomads.
+  - Só entram vagas **abertas a quem mora no Brasil**: sem restrição, mundial, LATAM/Américas ou Brasil. Vagas "só EUA/Europa" são descartadas e contadas no diagnóstico.
+  - A vaga mostra um aviso sobre idioma, contratação PJ/contractor e fuso horário.
+  - Na tela de vagas, há atalhos: Todas · Remoto no Brasil · Fora do Brasil · Na minha cidade · Híbrido.
+- **Compatibilidade:** o currículo agora reconhece habilidades de programação (JavaScript/TypeScript, React, Node, Java, .NET, PHP, APIs, Git, Docker/nuvem, testes, mobile).

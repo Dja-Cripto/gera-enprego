@@ -1,0 +1,11 @@
+.git
+.radar-*
+*.pdf
+*.bat
+*.ps1
+Claude outputs
+deploy/data
+site
+diagnostico-servidor.txt
+test-fixture-*.html
+node_modules

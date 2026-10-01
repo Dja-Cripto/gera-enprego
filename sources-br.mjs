@@ -35,6 +35,17 @@ const expansions=[
   [/dados|\bbi\b|power bi|indicadores/i,['analista de dados','assistente de dados','power bi','business intelligence']],
   [/process|automa/i,['assistente administrativo','auxiliar administrativo','automação','analista de processos']],
   [/administrativ/i,['assistente administrativo','auxiliar administrativo']],
+  // Programação: o público que mais procura vagas remotas.
+  [/desenvolv|programad|developer|software|full.?stack|front.?end|back.?end/i,['desenvolvedor','programador','desenvolvedor júnior','desenvolvedor front-end','desenvolvedor back-end','desenvolvedor full stack']],
+  [/react|javascript|typescript|node/i,['desenvolvedor react','desenvolvedor javascript','desenvolvedor node']],
+  [/python/i,['desenvolvedor python','python']],
+  [/java|spring/i,['desenvolvedor java']],
+  [/\.net|c#|csharp/i,['desenvolvedor .net','desenvolvedor c#']],
+  [/php|laravel/i,['desenvolvedor php']],
+  [/mobile|android|ios|flutter|react native/i,['desenvolvedor mobile','desenvolvedor flutter','desenvolvedor android']],
+  [/qa|teste|testes|quality/i,['analista de testes','QA']],
+  [/devops|cloud|infra|sre/i,['devops','analista de infraestrutura','cloud']],
+  [/customer success|cs/i,['customer success','analista de customer success']],
 ];
 export function searchTerms(settings){
   const roles=String(settings.jobRoles||'');
@@ -43,7 +54,7 @@ export function searchTerms(settings){
   if(/est[aá]gio/i.test(settings.jobLevels||'')){terms.push('estágio TI','estágio análise e desenvolvimento de sistemas','estágio dados')}
   for(const raw of roles.split(/[;,\n]+/)){const t=raw.replace(/\b(j[uú]nior|jr\.?|pleno|s[eê]nior)\b/gi,'').trim();if(t.length>2&&t.length<40)terms.push(t)}
   const seen=new Set();
-  return terms.filter(t=>{const k=norm(t);if(!k||seen.has(k))return false;seen.add(k);return true}).slice(0,24);
+  return terms.filter(t=>{const k=norm(t);if(!k||seen.has(k))return false;seen.add(k);return true}).slice(0,30);
 }
 export function cityParts(jobCity){const [city,uf]=String(jobCity||'').split(/[,\-\/]/).map(s=>s.trim());const states={BA:'Bahia',SP:'São Paulo',RJ:'Rio de Janeiro',MG:'Minas Gerais',PE:'Pernambuco',SE:'Sergipe',CE:'Ceará',PR:'Paraná',RS:'Rio Grande do Sul',SC:'Santa Catarina',GO:'Goiás',DF:'Distrito Federal',ES:'Espírito Santo',PB:'Paraíba',RN:'Rio Grande do Norte',AL:'Alagoas',PI:'Piauí',MA:'Maranhão',PA:'Pará',AM:'Amazonas',MT:'Mato Grosso',MS:'Mato Grosso do Sul',TO:'Tocantins',RO:'Rondônia',AC:'Acre',AP:'Amapá',RR:'Roraima'};return {city:city||'',state:states[(uf||'').toUpperCase()]||uf||''}}
 
