@@ -1,0 +1,6 @@
+const fs=require('fs');let s=fs.readFileSync('leads-ui.js','utf8');
+s=s.replace('  {key:"new",label:"Para contatar",test:l=>l.status==="new"},','  {key:"new",label:"Para contatar",test:l=>l.status==="new"},\n  {key:"email-ready",label:"Com e-mail para enviar",test:l=>l.status==="new"&&!!l.email},');
+const start=s.indexOf('        ${canSend?`<button class="button" data-lead-action="send-email"');const end=s.indexOf('\n        <button class="button button-ghost" data-lead-action="save-messages"',start);if(start<0||end<0)throw Error('button block missing');
+s=s.slice(0,start)+'        <button class="button" data-lead-action="send-email" data-id="${id}"${!em.configured?" disabled":""}>Enviar e-mail</button>\n        ${em.configured?`<span class="muted small">${em.sentToday||0} de ${em.dailyLimit||20} enviados hoje</span>`:""}\n        ${!l.email?`<p class="muted small">Ainda não encontramos um e-mail público desta empresa. Informe um endereço confirmado no campo Para ou escolha “Com e-mail para enviar” na lista.</p>`:""}'+s.slice(end);
+s=s.replace('    const l=LS.leads.find(x=>x.id===id);if(l&&l.email!==email)await saveLead(id,{email});\n    try{const r=await api(', '    try{const l=LS.leads.find(x=>x.id===id);if(l&&l.email!==email)await saveLead(id,{email});\n    const r=await api(');
+fs.writeFileSync('leads-ui.js',s);

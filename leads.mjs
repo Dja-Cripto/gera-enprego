@@ -106,7 +106,7 @@ export function hiringSignals(lead,jobCatalog,offer){
     const same=toks.some(t=>ctoks.includes(t))&&(toks.length===1||toks.filter(t=>ctoks.includes(t)).length>=Math.min(2,toks.length));
     if(!same)continue;
     const title=norm(j.title);
-    const relevant=roles.some(r=>title.includes(r));
+    const relevant=roles.some(r=>` ${title} `.includes(` ${r} `));
     out.push({type:relevant?'hiring-relevant':'hiring',text:`Está contratando: ${j.title}${j.source?` (${j.source})`:''}`,url:j.url||null});
     if(out.length>=3)break;
   }
@@ -120,12 +120,17 @@ const freeMail=/@(gmail|hotmail|outlook|live|yahoo|icloud|uol|bol|terra|ig)\./;
 export function parseSite(html,website){
   const text=String(html||'');
   const dom=siteDomain(website);
-  const emails=[...new Set((text.match(emailRe)||[]).map(e=>e.toLowerCase()).filter(e=>!/\.(png|jpe?g|gif|webp|svg)$/.test(e)&&!/(sentry|example|wixpress|godaddy|domain|seudominio|email\.com$)/.test(e)))];
-  const mailto=[...text.matchAll(/mailto:([^"'?\s>]+)/gi)].map(m=>decodeURIComponent(m[1]).toLowerCase());
-  const all=[...new Set([...mailto,...emails])].filter(e=>/^[^@]+@[^@]+\.[a-z]{2,}$/.test(e))
-    // Com site conhecido: aceita só e-mail do próprio domínio ou de provedor gratuito (evita o e-mail da agência que fez o site).
-    .filter(e=>!dom||e.endsWith('@'+dom)||e.endsWith('.'+dom)||freeMail.test(e))
-    .sort((a,b)=>(dom&&b.endsWith(dom))-(dom&&a.endsWith(dom)));
+  const emails=[...new Set((text.match(emailRe)||[]).map(e=>e.toLowerCase().replace(/^(%20)+/,'')).filter(e=>!/\.(png|jpe?g|gif|webp|svg)$/.test(e)&&!/(sentry|example|wixpress|godaddy|domain|seudominio|email\.com$)/.test(e)))];
+  const mailto=[...text.matchAll(/mailto:([^"'?\s>]+)/gi)].map(m=>{try{return decodeURIComponent(m[1])}catch{return m[1]}}).map(e=>e.trim().toLowerCase());
+  // Ordena sem descartar: primeiro o e-mail com o nome do site (ignorando .com/.com.br), depois Gmail/Hotmail etc., por último os demais.
+  // Descarta só e-mails de quem fez o site ("desenvolvido por ...").
+  const label=d=>d.split('.').filter(p=>!/^(www|com|net|org|br|imb|adv|med|ind|eti|blog|site)$/.test(p)&&p.length>2)[0]||'';
+  const siteLabel=label(dom);
+  const credits=(text.match(/(desenvolvid[oa]|criad[oa]|feito|produzid[oa])\s+(por|pela|pelo)[\s\S]{0,300}/gi)||[]).join(' ').toLowerCase();
+  const rank=e=>{const d=e.split('@')[1]||'';const l=label(d);if(siteLabel&&l&&(l===siteLabel||l.includes(siteLabel)||siteLabel.includes(l)))return 0;if(freeMail.test(e))return 1;return 2};
+  const all=[...new Set([...mailto,...emails])].filter(e=>/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(e))
+    .filter(e=>!(rank(e)===2&&credits.includes(e.split('@')[1])))
+    .sort((a,b)=>rank(a)-rank(b));
   const whatsapp=/wa\.me\/|api\.whatsapp\.com|whatsapp/i.test(text);
   const instagram=/instagram\.com\/[a-z0-9_.]+/i.exec(text)?.[0]||null;
   return {email:all[0]||null,emails:all.slice(0,3),whatsapp,instagram:instagram?`https://www.${instagram.replace(/^https?:\/\/(www\.)?/,'')}`:null};
@@ -140,10 +145,13 @@ export function scoreLead(lead){
   if(isChain(lead.name)){score-=35;reasons.push('Parece rede ou franquia: decisão de compra fora da cidade')}
   if(lead.signals?.some(s=>s.type==='hiring-relevant')){score+=30;reasons.push(lead.signals.find(s=>s.type==='hiring-relevant').text)}
   else if(lead.signals?.some(s=>s.type==='hiring')){score+=10;reasons.push(lead.signals.find(s=>s.type==='hiring').text)}
-  if(lead.mobile){score+=12;reasons.push('Telefone celular: provável WhatsApp')}
-  else if(lead.whatsappOnSite){score+=10;reasons.push('O site indica atendimento por WhatsApp')}
-  else if(lead.phoneDigits){score+=4;reasons.push('Tem telefone fixo')}
-  if(lead.email){score+=6;reasons.push('E-mail encontrado no site')}
+  // Canal de contato: a proposta é técnica e funciona melhor por e-mail.
+  // E-mail + WhatsApp > só e-mail > só WhatsApp > só telefone fixo.
+  const wa=lead.mobile||lead.whatsappOnSite;
+  if(lead.email&&wa){score+=25;reasons.push('Tem e-mail e WhatsApp')}
+  else if(lead.email){score+=18;reasons.push('Tem e-mail (sem WhatsApp)')}
+  else if(wa){score+=5;reasons.push('Só WhatsApp: sem e-mail para enviar a proposta')}
+  else if(lead.phoneDigits){score+=1;reasons.push('Só telefone fixo')}
   if(lead.website){score+=4;reasons.push('Tem site próprio')}else reasons.push('Sem site na ficha do Google')
   const r=Number(lead.reviews)||0;
   if(r>=100){score+=10;reasons.push(`${r} avaliações no Google: empresa movimentada`)}
@@ -153,6 +161,7 @@ export function scoreLead(lead){
   if(rating&&rating<4&&r>=10){score+=6;reasons.push(`Nota ${rating} no Google: atendimento pode estar sobrecarregado`)}
   if(!lead.website&&lead.mobile){score+=4;reasons.push('Atende só por celular, sem site: provável processo manual')}
   if(!lead.phoneDigits&&!lead.email){score-=15;reasons.push('Sem telefone nem e-mail encontrados')}
+  if(!lead.email)score=Math.min(score,55);
   return {score:Math.max(0,Math.min(100,score)),reasons};
 }
 
@@ -165,8 +174,15 @@ export function composeMessages(lead,campaign,sender){
   const me=sender?.name||'Daniel';
   const city=campaign.city?String(campaign.city).split(',')[0]:'';
   const company=lead.name;
-  const hiring=lead.signals?.find(s=>s.type==='hiring-relevant')||lead.signals?.find(s=>s.type==='hiring');
-  const reason=hiring?`Vi que vocês estão com uma vaga aberta (${hiring.text.replace(/^Está contratando: /,'').replace(/\s*\(.*\)$/,'')}), e imagino que parte desse trabalho seja lidar com ${niche?.docs||'tarefas repetitivas'}.`:fill(sheet.opening,niche);
+  // Vaga ligada à oferta (ex.: digitador, auxiliar administrativo): cita a vaga e a tarefa.
+  // Qualquer outra vaga (coordenador, serviços gerais, estágio em direito): só indica que a empresa está crescendo, sem supor o que o cargo faz.
+  const relevantJob=lead.signals?.find(s=>s.type==='hiring-relevant');
+  const anyJob=relevantJob||lead.signals?.find(s=>s.type==='hiring');
+  const hiring=anyJob;
+  const jobTitle=j=>j.text.replace(/^Está contratando: /,'').replace(/\s*\(.*\)$/,'');
+  const reason=relevantJob?`Vi que vocês estão com uma vaga aberta (${jobTitle(relevantJob)}), e imagino que parte desse trabalho seja lidar com ${niche?.docs||'tarefas repetitivas'}.`
+    :anyJob?`Vi que a ${company} está contratando, o que costuma indicar uma fase de crescimento. Nessa fase, muitas empresas aproveitam para tirar tarefas manuais da equipe.`
+    :fill(sheet.opening,niche);
   const formal=campaign.tone==='formal';
   const hello=formal?`Olá, equipe da ${company}. Tudo bem?`:`Oi, pessoal da ${company}! Tudo bem?`;
   const intro=`Sou ${me}${city?`, aqui de ${city}`:''}, e trabalho com ${sheet.short||'automação de processos'}.`;
@@ -246,12 +262,13 @@ export async function searchCampaign(campaign,deps){
     }
   }
   // Enriquecimento leve: site da empresa (e-mail, WhatsApp) para os mais promissores ainda não verificados.
-  const toCheck=touched.filter(l=>l.website&&(!l.siteCheckedAt||(!l.email&&Date.now()-Date.parse(l.siteCheckedAt)>86400000))).slice(0,60);
+  // siteCheckV<2: refaz a leitura dos sites verificados pela versão que descartava e-mails válidos.
+  const toCheck=touched.filter(l=>l.website&&(!l.siteCheckedAt||(!l.email&&((l.siteCheckV||0)<2||Date.now()-Date.parse(l.siteCheckedAt)>86400000)))).slice(0,150);
   for(let i=0;i<toCheck.length;i+=3){
     await Promise.all(toCheck.slice(i,i+3).map(async l=>{
       try{const H={'User-Agent':'Mozilla/5.0 RadarDaniel/0.2','Accept':'text/html'};const res=await http.fetchRaw(l.website,H,8000);const info=parseSite((await res.text()).slice(0,400000),l.website);
         if(!info.email&&!l.email)for(const path of ['/contato','/fale-conosco','/contact']){try{const r2=await http.fetchRaw(new URL(path,l.website).href,H,6000);const i2=parseSite((await r2.text()).slice(0,400000),l.website);if(i2.email){info.email=i2.email;info.emails=i2.emails;break}}catch{}}
-        Object.assign(l,{email:l.email||info.email,emails:info.emails,whatsappOnSite:info.whatsapp,instagram:info.instagram,siteCheckedAt:new Date().toISOString()})}
+        Object.assign(l,{email:l.email||info.email,emails:info.emails.length?info.emails:(l.emails||[]),whatsappOnSite:info.whatsapp,instagram:info.instagram,siteCheckedAt:new Date().toISOString(),siteCheckV:2})}
       catch{l.siteCheckedAt=new Date().toISOString();l.siteError=true}
     }));
   }

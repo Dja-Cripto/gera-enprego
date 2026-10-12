@@ -6,6 +6,7 @@ try{LS.campaignId=localStorage.getItem("radar-campaign")||null}catch{}
 const LEAD_STATUS={new:"Para contatar",contacted:"Contatada",replied:"Respondeu",meeting:"Reunião marcada",proposal:"Proposta enviada",won:"Fechou",lost:"Não fechou",blocked:"Não quer contato"};
 const LEAD_FILTERS=[
   {key:"new",label:"Para contatar",test:l=>l.status==="new"},
+  {key:"email-ready",label:"Com e-mail para enviar",test:l=>l.status==="new"&&!!l.email},
   {key:"follow",label:"Retornos para hoje",test:l=>followDue(l)},
   {key:"talking",label:"Em conversa",test:l=>["contacted","replied","meeting","proposal"].includes(l.status)},
   {key:"won",label:"Fechadas",test:l=>l.status==="won"},
@@ -140,7 +141,9 @@ function leadDetailHtml(l){
         <label class="full">Mensagem<textarea class="msg-box" id="lead-body" rows="14">${escapeHtml(m.emailBody||"")}</textarea></label>
       </div>
       <div class="row-actions">
-        ${canSend?`<button class="button" data-lead-action="send-email" data-id="${id}">Enviar e-mail</button><span class="muted small">${em.sentToday||0} de ${em.dailyLimit||20} enviados hoje</span>`:mailto?`<a class="button button-secondary" href="${escapeHtml(mailto)}">Abrir no meu e-mail</a>`:""}
+        <button class="button" data-lead-action="send-email" data-id="${id}"${!em.configured?" disabled":""}>Enviar e-mail</button>
+        ${em.configured?`<span class="muted small">${em.sentToday||0} de ${em.dailyLimit||20} enviados hoje</span>`:""}
+        ${!l.email?`<p class="muted small">Ainda não encontramos um e-mail público desta empresa. Informe um endereço confirmado no campo Para ou escolha “Com e-mail para enviar” na lista.</p>`:""}
         <button class="button button-ghost" data-lead-action="save-messages" data-id="${id}">Salvar texto</button>
       </div>
       ${!em.configured?`<p class="muted small">Para enviar direto daqui, configure o seu Gmail em <button class="link" data-view="settings">Meu perfil › E-mail para prospecção</button>.</p>`:""}`);
@@ -302,8 +305,8 @@ document.addEventListener("click",async e=>{
     if(!email){showToast("Informe o e-mail da empresa.");return}
     if(!confirm(`Enviar este e-mail para ${email} agora?`))return;
     b.disabled=true;b.textContent="Enviando…";
-    const l=LS.leads.find(x=>x.id===id);if(l&&l.email!==email)await saveLead(id,{email});
-    try{const r=await api(`/api/leads/${encodeURIComponent(id)}/send-email`,{method:"POST",body:{subject,body}});const i=LS.leads.findIndex(x=>x.id===id);if(i>=0)LS.leads[i]=r.lead;LS.email=r.email||LS.email;showToast("E-mail enviado. Lembrete de retorno em 4 dias.");refreshMetrics();rerenderDetail()}
+    try{const l=LS.leads.find(x=>x.id===id);if(l&&l.email!==email)await saveLead(id,{email});
+    const r=await api(`/api/leads/${encodeURIComponent(id)}/send-email`,{method:"POST",body:{subject,body}});const i=LS.leads.findIndex(x=>x.id===id);if(i>=0)LS.leads[i]=r.lead;LS.email=r.email||LS.email;showToast("E-mail enviado. Lembrete de retorno em 4 dias.");refreshMetrics();rerenderDetail()}
     catch(err){b.disabled=false;b.textContent="Enviar e-mail";showToast(err.message)}}
   if(a==="remove-gmail"){try{const r=await api("/api/integrations",{method:"POST",body:{remove:"gmail"}});LS.email=r.email||LS.email;renderEmailPanel();showToast("Senha de app removida.")}catch(err){showToast(err.message)}}
 });
