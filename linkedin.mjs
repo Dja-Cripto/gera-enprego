@@ -35,11 +35,11 @@ export async function memberInfo(token,{fetcher=fetch}={}){
   return {sub:data.sub,name:String(data.name||'Conta do LinkedIn').slice(0,160),picture:String(data.picture||'').slice(0,500)};
 }
 
-export async function publishMemberPost({token,sub,text,image=null,fetcher=fetch}){
+export async function publishMemberPost({token,sub,text,image=null,images=null,video=null,prepareOnly=false,fetcher=fetch}){
   const author=`urn:li:person:${sub}`;
   if(!String(text||'').trim())throw Error('O post está vazio.');
-  let media=null;
-  if(image){
+  const mediaItems=[];const attachments=images|| (image?[image]:[]);if(attachments.length>9)throw Error("Use até 9 imagens por post.");
+  for(const image of attachments){
     if(!Buffer.isBuffer(image.bytes)||!image.bytes.length||image.bytes.length>10*1024*1024)throw Error('Imagem inválida ou maior que 10 MB.');
     if(!['image/jpeg','image/png'].includes(image.mime))throw Error('Use uma imagem PNG ou JPEG.');
     const {data}=await linkedinRequest(`${API}/v2/assets?action=registerUpload`,{method:'POST',token,body:{registerUploadRequest:{recipes:['urn:li:digitalmediaRecipe:feedshare-image'],owner:author,serviceRelationships:[{relationshipType:'OWNER',identifier:'urn:li:userGeneratedContent'}]}},headers:{'X-Restli-Protocol-Version':'2.0.0'},fetcher});
@@ -48,10 +48,22 @@ export async function publishMemberPost({token,sub,text,image=null,fetcher=fetch
     if(uploadUrl.protocol!=='https:'||!['api.linkedin.com','www.linkedin.com'].includes(uploadUrl.hostname)||!data.value?.asset)throw Error('O LinkedIn não forneceu um destino seguro para a imagem.');
     const response=await fetcher(uploadUrl,{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':image.mime,...(upload.headers||{})},body:image.bytes,signal:AbortSignal.timeout(60000)});
     if(!response.ok)throw Error(`O LinkedIn recusou a imagem (${response.status}).`);
-    media={status:'READY',media:data.value.asset,description:{text:String(image.alt||'Imagem do post').slice(0,200)}};
+    const media={status:'READY',media:data.value.asset,description:{text:String(image.alt||'Imagem do post').slice(0,200)}};mediaItems.push(media);
   }
-  const content={shareCommentary:{text:String(text).trim()},shareMediaCategory:media?'IMAGE':'NONE'};
-  if(media)content.media=[media];
+  if(video){
+    if(attachments.length)throw Error('Publique vídeo separado das imagens.');
+    if(!Buffer.isBuffer(video.bytes)||video.bytes.length>50*1024*1024||video.bytes.subarray(4,8).toString()!=='ftyp')throw Error('Use um vídeo MP4 de até 50 MB.');
+    const {data}=await linkedinRequest(API+'/v2/assets?action=registerUpload',{method:'POST',token,body:{registerUploadRequest:{recipes:['urn:li:digitalmediaRecipe:feedshare-video'],owner:author,serviceRelationships:[{relationshipType:'OWNER',identifier:'urn:li:userGeneratedContent'}]}},headers:{'X-Restli-Protocol-Version':'2.0.0'},fetcher});
+    const upload=data.value?.uploadMechanism?.['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'];const url=new URL(upload?.uploadUrl||'');
+    if(url.protocol!=='https:'||!['api.linkedin.com','www.linkedin.com'].includes(url.hostname)||!data.value?.asset)throw Error('Destino de upload do vídeo inválido.');
+    const response=await fetcher(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream',...(upload.headers||{})},body:video.bytes,signal:AbortSignal.timeout(120000)});if(!response.ok)throw Error('LinkedIn recusou o vídeo ('+response.status+').');
+    const asset=data.value.asset;let ready=false;
+    for(let i=0;i<24;i++){const {data:info}=await linkedinRequest(API+'/v2/assets/'+encodeURIComponent(asset.split(':').at(-1)),{token,headers:{'X-Restli-Protocol-Version':'2.0.0'},fetcher});const status=info.recipes?.find(r=>r.recipe==='urn:li:digitalmediaRecipe:feedshare-video')?.status;if(status==='AVAILABLE'){ready=true;break}if(['CLIENT_ERROR','SERVER_ERROR','INCOMPLETE'].includes(status))throw Error('O LinkedIn não conseguiu processar o vídeo: '+status);await new Promise(r=>setTimeout(r,5000));}
+    if(!ready)throw Error('O LinkedIn ainda está processando o vídeo. A publicação não foi enviada.');mediaItems.push({status:'READY',media:asset,description:{text:String(video.alt||'Vídeo do post').slice(0,200)}});
+  }
+  if(prepareOnly)return {prepared:true,assets:mediaItems.map(m=>m.media)};
+  const content={shareCommentary:{text:String(text).trim()},shareMediaCategory:video?'VIDEO':mediaItems.length?'IMAGE':'NONE'};
+  if(mediaItems.length)content.media=mediaItems;
   const {response}=await linkedinRequest(`${API}/v2/ugcPosts`,{method:'POST',token,headers:{'X-Restli-Protocol-Version':'2.0.0'},body:{author,lifecycleState:'PUBLISHED',specificContent:{'com.linkedin.ugc.ShareContent':content},visibility:{'com.linkedin.ugc.MemberNetworkVisibility':'PUBLIC'}},fetcher});
   const urn=response.headers.get('x-restli-id');
   if(!urn)throw Error('O LinkedIn aceitou o post, mas não devolveu o identificador. Confira seu perfil antes de tentar novamente.');

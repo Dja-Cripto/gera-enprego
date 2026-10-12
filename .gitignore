@@ -20,3 +20,4 @@ deploy/data/
 
 # Resultado da atualização automática
 atualizar-servidor.txt
+deploy/servidor.local.json

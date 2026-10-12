@@ -115,19 +115,29 @@ export function hiringSignals(lead,jobCatalog,offer){
 
 // ---------- Site da empresa ----------
 const emailRe=/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
-export function parseSite(html){
+const siteDomain=u=>{try{return new URL(u).hostname.replace(/^www\./,'').toLowerCase()}catch{return ''}};
+const freeMail=/@(gmail|hotmail|outlook|live|yahoo|icloud|uol|bol|terra|ig)\./;
+export function parseSite(html,website){
   const text=String(html||'');
+  const dom=siteDomain(website);
   const emails=[...new Set((text.match(emailRe)||[]).map(e=>e.toLowerCase()).filter(e=>!/\.(png|jpe?g|gif|webp|svg)$/.test(e)&&!/(sentry|example|wixpress|godaddy|domain|seudominio|email\.com$)/.test(e)))];
   const mailto=[...text.matchAll(/mailto:([^"'?\s>]+)/gi)].map(m=>decodeURIComponent(m[1]).toLowerCase());
-  const all=[...new Set([...mailto,...emails])].filter(e=>/^[^@]+@[^@]+\.[a-z]{2,}$/.test(e));
+  const all=[...new Set([...mailto,...emails])].filter(e=>/^[^@]+@[^@]+\.[a-z]{2,}$/.test(e))
+    // Com site conhecido: aceita só e-mail do próprio domínio ou de provedor gratuito (evita o e-mail da agência que fez o site).
+    .filter(e=>!dom||e.endsWith('@'+dom)||e.endsWith('.'+dom)||freeMail.test(e))
+    .sort((a,b)=>(dom&&b.endsWith(dom))-(dom&&a.endsWith(dom)));
   const whatsapp=/wa\.me\/|api\.whatsapp\.com|whatsapp/i.test(text);
   const instagram=/instagram\.com\/[a-z0-9_.]+/i.exec(text)?.[0]||null;
   return {email:all[0]||null,emails:all.slice(0,3),whatsapp,instagram:instagram?`https://www.${instagram.replace(/^https?:\/\/(www\.)?/,'')}`:null};
 }
 
 // ---------- Pontuação ----------
+// Redes e franquias raramente decidem compras localmente.
+const CHAINS=/\b(pague menos|drogasil|drogaria sao paulo|droga raia|extrafarma|panvel|pacheco|atacadao|assai|carrefour|gbarbosa|bompreco|mercantil rodrigues|hiperideal|sabin|fleury|dasa|hermes pardini|lavoisier|amil|hapvida|odontocompany|sorridents|oral sin|ortoplan|mcdonald|burger king|subway|habib|bobs|kfc|outback|cacau show|boticario|localiza|movida|unidas|wizard|fisk|ccaa|kumon|senac|senai|sesi|leroy merlin|telhanorte|casas bahia|magazine luiza|renner|riachuelo)\b/;
+export function isChain(name){return CHAINS.test(norm(name))}
 export function scoreLead(lead){
   let score=35;const reasons=[];
+  if(isChain(lead.name)){score-=35;reasons.push('Parece rede ou franquia: decisão de compra fora da cidade')}
   if(lead.signals?.some(s=>s.type==='hiring-relevant')){score+=30;reasons.push(lead.signals.find(s=>s.type==='hiring-relevant').text)}
   else if(lead.signals?.some(s=>s.type==='hiring')){score+=10;reasons.push(lead.signals.find(s=>s.type==='hiring').text)}
   if(lead.mobile){score+=12;reasons.push('Telefone celular: provável WhatsApp')}
@@ -139,11 +149,15 @@ export function scoreLead(lead){
   if(r>=100){score+=10;reasons.push(`${r} avaliações no Google: empresa movimentada`)}
   else if(r>=20){score+=6;reasons.push(`${r} avaliações no Google`)}
   else if(r>0)score+=2;
+  const rating=Number(lead.rating)||0;
+  if(rating&&rating<4&&r>=10){score+=6;reasons.push(`Nota ${rating} no Google: atendimento pode estar sobrecarregado`)}
+  if(!lead.website&&lead.mobile){score+=4;reasons.push('Atende só por celular, sem site: provável processo manual')}
   if(!lead.phoneDigits&&!lead.email){score-=15;reasons.push('Sem telefone nem e-mail encontrados')}
   return {score:Math.max(0,Math.min(100,score)),reasons};
 }
 
 // ---------- Mensagens ----------
+export const OPT_OUT='Se preferirem não receber novos contatos, basta responder a este e-mail.';
 function firstName(name){return String(name||'').trim().split(/\s+/)[0]||''}
 export function composeMessages(lead,campaign,sender){
   const niche=resolveNiche(lead.niche,campaign);
@@ -159,10 +173,14 @@ export function composeMessages(lead,campaign,sender){
   const offerLine=fill(sheet.delivery,niche);
   const ask=`Faz sentido eu te mostrar um exemplo rápido de como ficaria para a ${company}?`;
   const whatsapp=[hello,`${intro} ${reason}`,offerLine,ask].join('\n\n');
-  const subject=`${sheet.name||'Automação'} para a ${company}`;
+  const subject=`Pergunta rápida sobre a rotina da ${company}`;
   const questions=String(sheet.questions||'').split('\n').map(q=>q.trim()).filter(Boolean).slice(0,2);
-  const sig=[sender?.name||me,sender?.title||'',sender?.phone?`WhatsApp: ${sender.phone}`:'',sender?.site||''].filter(Boolean).join('\n');
-  const email=[formal?`Olá, equipe da ${company},`:`Olá, pessoal da ${company},`,'',`${intro} ${reason}`,'',fill(sheet.problem,niche),'',`Como funciona: ${offerLine}`,`Resultado: ${sheet.result}`,'',questions.length?`Para eu entender se faz sentido para vocês:\n${questions.map(q=>`• ${q}`).join('\n')}`:'','',`Posso te mandar um exemplo de 1 minuto?`,'',`Obrigado,`,sig,'',`—`,`Se não quiser receber mais mensagens minhas, é só responder "não".`].filter((l,i,a)=>!(l===''&&a[i-1]==='')).join('\n');
+  const sig=[sender?.name||me,sender?.title||''].filter(Boolean).join('\n');
+  const sectorExamples={contabilidade:'organização de documentos dos clientes, conferência de informações e atualização de planilhas',imobiliaria:'organização de contatos interessados em imóveis, acompanhamento de propostas e atualização de cadastros',distribuidora:'consolidação de pedidos, atualização de estoque e geração de relatórios',clinica:'organização de agendamentos e rotinas administrativas',restaurante:'organização de pedidos e controle de informações de vendas'};
+  const examples=sectorExamples[lead.niche]||fill('{docs}',niche);
+  const context=hiring?reason:'';
+  const email=[formal?`Olá, equipe da ${company},`:`Olá, pessoal da ${company},`,'',intro,'',context,context?'':'',`Para a ${company}, gostaria de avaliar se faz sentido automatizar rotinas como ${examples}. São possibilidades para conversarmos; a solução depende de como vocês trabalham hoje.`,'',`Desenvolvo automações sob medida para conectar ferramentas, organizar informações e reduzir tarefas manuais. Qual rotina mais toma tempo da equipe atualmente?`,'',sender?.site?`Para conhecer meus projetos e outras formas de contato, acesse meu portfólio: ${sender.site}`:'Se quiser conhecer meus projetos, posso compartilhar meu portfólio por e-mail.','',`Se houver interesse, podemos conversar por aqui e avaliar uma solução para a ${company}.`,'','Obrigado,',sig,'',OPT_OUT].filter((line,i,arr)=>line!==''||arr[i-1]!=='').join('\n');
+
   return {whatsapp,emailSubject:subject,emailBody:email};
 }
 
@@ -210,7 +228,7 @@ export async function searchCampaign(campaign,deps){
           const data=await http.fetchJson(`https://serpapi.com/search.json?${params}`,{},{timeout:60000});
           if(data?.error&&!/hasn't returned any results/i.test(data.error))throw Error(data.error);
           return Array.isArray(data?.local_results)?data.local_results:[];
-        },7*86400000);
+        },20*60*60*1000);
         for(const r of rows){
           const place=normalizePlace(r,niche.key,campaign.id);
           if(coords&&place.lat!=null&&haversine(coords,[place.lat,place.lng])>radius)continue;
@@ -228,10 +246,12 @@ export async function searchCampaign(campaign,deps){
     }
   }
   // Enriquecimento leve: site da empresa (e-mail, WhatsApp) para os mais promissores ainda não verificados.
-  const toCheck=touched.filter(l=>l.website&&!l.siteCheckedAt).slice(0,15);
+  const toCheck=touched.filter(l=>l.website&&(!l.siteCheckedAt||(!l.email&&Date.now()-Date.parse(l.siteCheckedAt)>86400000))).slice(0,60);
   for(let i=0;i<toCheck.length;i+=3){
     await Promise.all(toCheck.slice(i,i+3).map(async l=>{
-      try{const res=await http.fetchRaw(l.website,{'User-Agent':'Mozilla/5.0 RadarDaniel/0.2','Accept':'text/html'},8000);const info=parseSite((await res.text()).slice(0,400000));Object.assign(l,{email:l.email||info.email,emails:info.emails,whatsappOnSite:info.whatsapp,instagram:info.instagram,siteCheckedAt:new Date().toISOString()})}
+      try{const H={'User-Agent':'Mozilla/5.0 RadarDaniel/0.2','Accept':'text/html'};const res=await http.fetchRaw(l.website,H,8000);const info=parseSite((await res.text()).slice(0,400000),l.website);
+        if(!info.email&&!l.email)for(const path of ['/contato','/fale-conosco','/contact']){try{const r2=await http.fetchRaw(new URL(path,l.website).href,H,6000);const i2=parseSite((await r2.text()).slice(0,400000),l.website);if(i2.email){info.email=i2.email;info.emails=i2.emails;break}}catch{}}
+        Object.assign(l,{email:l.email||info.email,emails:info.emails,whatsappOnSite:info.whatsapp,instagram:info.instagram,siteCheckedAt:new Date().toISOString()})}
       catch{l.siteCheckedAt=new Date().toISOString();l.siteError=true}
     }));
   }
@@ -247,3 +267,11 @@ export async function searchCampaign(campaign,deps){
 
 export const STATUSES=['new','contacted','replied','meeting','proposal','won','lost','blocked'];
 export {resolveNiche,offerByKey};
+
+// HTML seguro para o e-mail, com links HTTP(S) clicáveis.
+export function prospectEmailHtml(text){
+  const escape=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+  const parts=String(text).split(/(https?:\/\/[^\s<>]+)/g);
+  const body=parts.map(p=>/^https?:\/\//.test(p)?`<a href="${escape(p)}" style="color:#176050;text-decoration:underline">${escape(p)}</a>`:escape(p)).join('').replace(/\n/g,'<br>');
+  return `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.65;color:#203833">${body}</div>`;
+}

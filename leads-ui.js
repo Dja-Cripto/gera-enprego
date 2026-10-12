@@ -197,7 +197,7 @@ function campaignFormHtml(c){
         <label>Empresas por nicho<select name="pagesPerNiche">${opt(1,"até 20 (1 busca por nicho)",c.pagesPerNiche||1)}${opt(2,"até 40 (2 buscas)",c.pagesPerNiche||1)}${opt(3,"até 60 (3 buscas)",c.pagesPerNiche||1)}</select></label>
         <label>Tom da mensagem<select name="tone">${opt("informal","Próximo e simples",c.tone||"informal")}${opt("formal","Mais formal",c.tone||"informal")}</select></label>
         <label>Primeiro contato por<select name="channel">${opt("whatsapp","WhatsApp",c.channel||"email")}${opt("email","E-mail",c.channel||"email")}${opt("ambos","Os dois",c.channel||"email")}</select></label>
-        <fieldset class="full porte" disabled><legend>Porte da empresa <span class="flag soft">em breve</span></legend><label><input type="checkbox"> MEI</label><label><input type="checkbox"> Micro</label><label><input type="checkbox"> Pequena</label><label><input type="checkbox"> Média</label><p class="muted small">Vai usar os dados públicos de CNPJ. Por enquanto a nota considera avaliações no Google, site e vagas abertas.</p></fieldset>
+        <label class="full"><span><input type="checkbox" name="autoSearch"${c.autoSearch!==false?' checked':''}> Buscar novos clientes todos os dias à meia-noite (horário da Bahia)</span><small>Prepara contatos e mensagens. O envio depende da sua aprovação.</small></label><fieldset class="full porte" disabled><legend>Porte da empresa <span class="flag soft">em breve</span></legend><label><input type="checkbox"> MEI</label><label><input type="checkbox"> Micro</label><label><input type="checkbox"> Pequena</label><label><input type="checkbox"> Média</label><p class="muted small">Vai usar os dados públicos de CNPJ. Por enquanto a nota considera avaliações no Google, site e vagas abertas.</p></fieldset>
       </div>
       <p class="muted small" id="camp-cost"></p>
     </section>
@@ -218,7 +218,7 @@ function offerFieldsHtml(o){
 function readCampaignForm(form){
   const fd=new FormData(form);const offer={};
   for(const [k,v] of fd.entries())if(k.startsWith("offer."))offer[k.slice(6)]=v;
-  return {name:fd.get("name"),offerSummary:fd.get("offerSummary"),offer,niches:fd.getAll("niche"),customNiches:String(fd.get("customNiches")||"").split(",").map(s=>s.trim()).filter(Boolean),city:fd.get("city"),radiusKm:fd.get("radiusKm"),pagesPerNiche:fd.get("pagesPerNiche"),tone:fd.get("tone"),channel:fd.get("channel")};
+  return {autoSearch:fd.has("autoSearch"),name:fd.get("name"),offerSummary:fd.get("offerSummary"),offer,niches:fd.getAll("niche"),customNiches:String(fd.get("customNiches")||"").split(",").map(s=>s.trim()).filter(Boolean),city:fd.get("city"),radiusKm:fd.get("radiusKm"),pagesPerNiche:fd.get("pagesPerNiche"),tone:fd.get("tone"),channel:fd.get("channel")};
 }
 function updateCost(){
   const form=document.querySelector("#campaign-form");if(!form)return;

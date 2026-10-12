@@ -9,3 +9,5 @@ site
 diagnostico-servidor.txt
 test-fixture-*.html
 node_modules
+deploy/servidor.local.json
+atualizar-servidor.txt

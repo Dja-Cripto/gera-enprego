@@ -81,7 +81,7 @@ function postItemHtml(p){
   const sel=p.id===PS.selectedId;
   return `<article class="job-item${sel?" selected":""}" data-post-select="${p.id}" tabindex="0" aria-selected="${sel}">
     <div class="job-item-top"><h3>${escapeHtml(p.hook||p.text.split("\n")[0])}</h3></div>
-    <p class="job-co">${escapeHtml(pillarLabel(p.pillar))}${p.language==="en"?" · inglês":""}</p>
+    <p class="job-co">${escapeHtml(pillarLabel(p.pillar))}${p.channel==='telegram'?' · Telegram':''}${p.language==="en"?" · inglês":""}</p>
     <p class="job-foot"><span class="state post-${p.status}">${POST_STATUS[p.status]}</span><span>${escapeHtml(whenText(p.status==="published"?p.publishedAt:p.scheduledFor))}</span>${p.fromCheckin?'<span class="flag soft">Da sua semana</span>':""}</p>
   </article>`;
 }
@@ -94,28 +94,30 @@ function postDetailHtml(p){
     <p class="d-fit"><span class="state post-${p.status}">${POST_STATUS[p.status]}</span> <label class="inline-date">para <input type="datetime-local" id="post-when" value="${localInput(p.scheduledFor)}"></label></p>
     <div class="d-actions">
       ${p.status==="draft"||p.status==="approved"&&!p.humanApprovedAt?`<button class="button" data-post-action="approve" data-id="${id}">${icon("check")} ${p.status==='approved'?'Confirmar aprovação':'Aprovar'}</button>`:""}
-      ${p.status!=="published"?`<a class="button ${p.status==="draft"?"button-secondary":""}" href="${escapeHtml(share)}" target="_blank" rel="noopener noreferrer" data-post-share="${id}">${icon("linkedin")} Publicar no LinkedIn</a>`:""}
+      ${p.channel!=="telegram"&&p.status!=="published"?`<a class="button ${p.status==="draft"?"button-secondary":""}" href="${escapeHtml(share)}" target="_blank" rel="noopener noreferrer" data-post-share="${id}">${icon("linkedin")} Publicar no LinkedIn</a>`:""}
       <button class="button button-secondary" data-post-action="copy" data-id="${id}">${icon("copy")} Copiar texto</button>
-      ${p.status==="approved"&&p.humanApprovedAt&&PS.linkedin?.connected?`<button class="button" data-post-action="publish-now" data-id="${id}">Publicar agora pela conexão</button>`:""}
+      ${p.status==="approved"&&p.humanApprovedAt&&(p.channel==='telegram'?PS.telegram?.configured:PS.linkedin?.connected)?`<button class="button" data-post-action="publish-now" data-id="${id}">Publicar agora pela conexão</button>`:""}
       ${p.status==="approved"?`<button class="button button-ghost" data-post-action="published" data-id="${id}">Já publiquei</button><button class="button button-ghost" data-post-action="unapprove" data-id="${id}">Voltar para rascunho</button>`:""}
       ${p.status!=="published"?`<button class="button button-ghost danger" data-post-action="skip" data-id="${id}">Descartar</button>`:""}
     </div>
     <p class="d-hint" id="share-hint" hidden>O LinkedIn abre com o texto pronto. Anexe a imagem, publique e depois clique em <strong>Já publiquei</strong>. <button class="button button-secondary" data-post-action="published" data-id="${id}">${icon("check")} Já publiquei</button></p>
+    ${p.telegramError?`<p class="notice warn">Telegram: ${escapeHtml(p.telegramError)} Confira o canal antes de tentar novamente.</p>`:''}
     ${p.linkedinError?`<p class="notice warn">LinkedIn: ${escapeHtml(p.linkedinError)}${p.linkedinAttemptedAt?' Confira seu perfil antes de tentar novamente.':''}</p>`:''}
     ${p.linkedinUrl?`<p><a href="${escapeHtml(p.linkedinUrl)}" target="_blank" rel="noopener noreferrer">Abrir publicação no LinkedIn ↗</a></p>`:''}
-    ${p.status==='approved'&&p.humanApprovedAt&&PS.linkedin?.autoPublish?'<p class="muted small">Publicação automática ligada: este post será enviado no horário escolhido se a imagem estiver pronta.</p>':''}
+    ${p.status==='approved'&&p.humanApprovedAt&&(p.channel==='telegram'?PS.telegram?.autoPublish:PS.linkedin?.autoPublish)?'<p class="muted small">Publicação automática ligada: este post será enviado no horário escolhido se a imagem estiver pronta.</p>':''}
   </header>`;
   h+=section("Texto",`<textarea class="msg-box" id="post-text" rows="16">${escapeHtml(p.text)}</textarea>
     <div class="row-actions"><span class="muted small" id="post-count">${p.text.length} caracteres</span><button class="button button-ghost" data-post-action="save" data-id="${id}">Salvar texto</button></div>
     <div class="rewrite"><input id="rewrite-note" placeholder="Peça um ajuste: mais curto, mais pessoal, cite o projeto X…"><button class="button button-secondary" data-post-action="rewrite" data-id="${id}">${PS.busy===`rewrite:${id}`?"Reescrevendo…":"Reescrever com IA"}</button></div>
     <div class="quick-asks">${["Mais curto","Mais pessoal","Primeira linha mais forte","Menos formal","Em inglês"].map(t=>`<button class="chip small" data-rewrite-quick="${t}" data-id="${id}">${t}</button>`).join("")}</div>`);
-  h+=section("Imagem",`<div class="segmented img-kinds" role="group">${[["print","Seu print ou foto"],["card","Card com texto"],["photo","Foto de banco"]].map(([k,l])=>`<button class="seg${img.kind===k?" active":""}" data-img-kind="${k}" data-id="${id}">${l}</button>`).join("")}</div>${imageBodyHtml(p)}`);
+  h+=section(p.importedMedia?.length?"Mídias da publicação":"Imagem",`${p.importedMedia?.length?'':`<div class="segmented img-kinds" role="group">${[["print","Seu print ou foto"],["card","Card com texto"],["photo","Foto de banco"]].map(([k,l])=>`<button class="seg${img.kind===k?" active":""}" data-img-kind="${k}" data-id="${id}">${l}</button>`).join("")}</div>`}${imageBodyHtml(p)}`);
   if(p.factsUsed?.length)h+=`<details class="disclosure"><summary>Fatos usados pela IA ${icon("chevron","i chev")}</summary><div class="disclosure-body"><ul class="plain">${p.factsUsed.map(f=>`<li>${escapeHtml(f)}</li>`).join("")}</ul><p class="muted small">Escrito por ${escapeHtml(p.model||"IA")}. Se algo não for verdade, corrija o texto antes de aprovar.</p></div></details>`;
   return h;
 }
 function cardStyle(p){return ['contrast','editorial','minimal'].includes(p.image?.style)?p.image.style:['contrast','editorial','minimal'][parseInt(String(p.id||'0').slice(-2),16)%3||0]}
 function imageBodyHtml(p){
   const img=p.image||{};const id=p.id;
+  if(p.importedMedia?.length)return `<div class="img-box"><p class="muted small">Mídias importadas · ${p.importedMedia.length} arquivo(s)</p>${p.importWarning&&!p.importedMedia.some(m=>m.mime==='video/mp4')?`<p class="notice warn">${escapeHtml(p.importWarning)}</p>`:''}<div class="import-media-grid">${p.importedMedia.map((m,i)=>m.mime==='video/mp4'?`<video controls preload="metadata" src="/api/posts/${p.id}/media/${i}" style="width:100%"></video>`:`<img src="/api/posts/${p.id}/media/${i}" alt="${escapeHtml(m.name)}" style="width:100%;border-radius:10px">`).join('')}</div></div>`;
   if(img.kind==="print")return `<div class="img-box"><p><strong>Sugestão:</strong> ${escapeHtml(img.printIdea||"Um print ou foto real do trabalho descrito no post.")}</p><p class="muted small">Escolha um PNG ou JPEG do seu trabalho para anexar automaticamente ao post.</p><input id="post-image-file" type="file" accept="image/png,image/jpeg"><button class="button button-secondary" data-post-action="upload-image" data-id="${id}">Guardar imagem</button>${img.uploadedKind==='print'&&img.uploadedAt?'<p class="state approved">Imagem pronta para publicar</p>':''}</div>`;
   if(img.kind==="photo"){
     const photos=PS.photos[id];
@@ -200,9 +202,10 @@ async function uploadPostImage(id,blob){
   const data=await response.json();if(!response.ok)throw Error(data.error||'Não consegui guardar a imagem.');replacePost(data.post);return data.post;
 }
 async function saveCardAndImage(id,root){
-  const p=await savePost(id,{image:{cardTitle:root.querySelector('#card-title').value,cardLines:[...root.querySelectorAll('.card-line')].map(i=>i.value)}});
+  const title=root?.querySelector('#card-title'),canvas=root?.querySelector('#card-canvas');if(!title||!canvas)throw Error('Abra o editor do card antes de salvar.');
+  const p=await savePost(id,{image:{cardTitle:title.value,cardLines:[...root.querySelectorAll('.card-line')].map(i=>i.value)}});
   if(!p)throw Error('Não consegui salvar o card.');
-  drawCardPreview();const canvas=root.querySelector('#card-canvas');
+  drawCardPreview();
   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
   return uploadPostImage(id,blob);
 }
@@ -262,13 +265,15 @@ document.addEventListener("click",async e=>{
   if(a==="approve"){
     try{
       const post=PS.items.find(x=>x.id===id);const img=post?.image||{};
-      if(PS.linkedin?.connected){
-        if(img.kind==='card')await saveCardAndImage(id,root);
-        if(img.kind==='print'&&!(img.uploadedKind==='print'&&img.uploadedAt))throw Error('Guarde seu print ou foto antes de aprovar para publicação automática.');
+      if(!post)throw Error('Post não encontrado. Atualize a página e tente novamente.');
+      if(!post.importedMedia?.length&&post.channel!=='telegram'&&PS.linkedin?.connected){
+        if(!post.importedMedia?.length&&img.kind==='card')await saveCardAndImage(id,root);
+        if(post.channel!=='telegram'&&!post.importedMedia?.some(m=>m.mime==='video/mp4')&&img.kind==='print'&&!(img.uploadedKind==='print'&&img.uploadedAt))throw Error('Guarde seu print ou foto antes de aprovar para publicação automática.');
         if(img.kind==='photo'&&!img.chosen?.large)throw Error('Escolha uma foto antes de aprovar para publicação automática.');
       }
+      const editor=root?.querySelector('#post-text');if(!editor)throw Error('Selecione novamente o post para aprovar.');
       const when=root.querySelector("#post-when")?.value;
-      await savePost(id,{text:root.querySelector("#post-text").value,status:"approved",...(when?{scheduledFor:new Date(when).toISOString()}:{})},PS.linkedin?.autoPublish?'Aprovado. Será publicado no horário escolhido.':PS.email.configured?"Aprovado. Na hora marcada o post chega no seu e-mail.":"Aprovado e agendado.");refreshDetail();
+      await savePost(id,{text:editor.value,status:"approved",...(when?{scheduledFor:new Date(when).toISOString()}:{})},(post.channel==='telegram'?PS.telegram?.autoPublish:PS.linkedin?.autoPublish)?'Aprovado. Será publicado no horário escolhido.':PS.email.configured?"Aprovado. Na hora marcada o post chega no seu e-mail.":"Aprovado e agendado.");refreshDetail();
     }catch(err){showToast(err.message)}
   }
   if(a==="unapprove"){await savePost(id,{status:"draft"});refreshDetail()}
@@ -281,8 +286,8 @@ document.addEventListener("click",async e=>{
   if(a==="save-card"){try{await saveCardAndImage(id,root);showToast('Card salvo e pronto para publicação.');refreshDetail()}catch(err){showToast(err.message)}}
   if(a==="upload-image"){try{await uploadPostImage(id,root.querySelector('#post-image-file')?.files?.[0]);showToast('Imagem guardada para publicação.');refreshDetail()}catch(err){showToast(err.message)}}
   if(a==="publish-now"){
-    const post=PS.items.find(x=>x.id===id);if(post?.linkedinAttemptedAt&&!confirm('Já houve uma tentativa de envio. Confira seu LinkedIn antes de tentar novamente para evitar um post duplicado. Continuar?'))return;
-    try{b.disabled=true;b.textContent='Publicando…';if(post?.image?.kind==='card'&&!(post.image.uploadedKind==='card'&&post.image.uploadedAt))await saveCardAndImage(id,root);const r=await papi(`/api/posts/${id}/publish-now`,{method:'POST',body:{retry:!!post?.linkedinAttemptedAt}});replacePost(r.post);showToast('Post publicado no LinkedIn.');PS.tab='published';refreshDetail()}
+    const post=PS.items.find(x=>x.id===id);if((post?.linkedinAttemptedAt||post?.telegramAttemptedAt)&&!confirm('Já houve uma tentativa de envio. Confira seu canal ou perfil antes de tentar novamente para evitar um post duplicado. Continuar?'))return;
+    try{b.disabled=true;b.textContent='Publicando…';if(!post?.importedMedia?.length&&post?.image?.kind==='card'&&!(post.image.uploadedKind==='card'&&post.image.uploadedAt))await saveCardAndImage(id,root);const r=await papi(`/api/posts/${id}/publish-now`,{method:'POST',body:{retry:!!(post?.linkedinAttemptedAt||post?.telegramAttemptedAt)}});replacePost(r.post);showToast(post?.channel==='telegram'?'Post publicado no Telegram.':'Post publicado no LinkedIn.');PS.tab='published';refreshDetail()}
     catch(err){showToast(err.message);const updated=await papi('/api/posts').catch(()=>null);if(updated?.items){PS.items=updated.items;refreshDetail()}else{b.disabled=false;b.textContent='Publicar agora pela conexão'}}
   }
   if(a==="download-card"){drawCardPreview();const c=root.querySelector("#card-canvas");const link=document.createElement("a");link.download=`card-${id}.png`;link.href=c.toDataURL("image/png");link.click()}

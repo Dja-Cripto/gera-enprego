@@ -7,10 +7,13 @@ import {collectBrazil,norm,plain} from './sources-br.mjs';
 import {matchProfile} from './match-profile.mjs';
 import {collectApis} from './sources-apis.mjs';
 import {collectRemote,openToBrazil,isBrazilLocation} from './sources-remote.mjs';
-import {NICHES,OFFERS,buildOfferSheet,searchCampaign,composeMessages,scoreLead,STATUSES,customNiche} from './leads.mjs';
+import {NICHES,OFFERS,buildOfferSheet,searchCampaign,composeMessages,prospectEmailHtml,scoreLead,STATUSES,customNiche,OPT_OUT} from './leads.mjs';
 import {sendMail} from './mailer.mjs';
+import {digestEmail} from './digest-email.mjs';
+import {publishTelegram,telegramCall} from './telegram.mjs';
+import {unzipPosts,describeImport,importHash,safeImportPath} from './post-import.mjs';
 import {createAuth,isHttps,isLocal,passwordProblem,MIN_PASSWORD} from './auth.mjs';
-import {INTERVIEW,CHECKIN,PILLARS,DEFAULT_VOICE,DAY_NAMES,AI_DEFAULTS,aiConfig,aiChat,buildStoryBank,planWeek,writePost,marketSignals,searchPhotos,photoProvider,choosePostPhoto,reminderEmail} from './posts.mjs';
+import {INTERVIEW,CHECKIN,PILLARS,DEFAULT_VOICE,DAY_NAMES,AI_DEFAULTS,aiConfig,aiChat,buildStoryBank,planWeek,writePost,marketSignals,searchPhotos,photoProvider,choosePostPhoto,reminderEmail,nextSlots} from './posts.mjs';
 import {LINKEDIN_CALLBACK,authorizationUrl,exchangeCode,memberInfo,publishMemberPost,sealToken,openToken} from './linkedin.mjs';
 
 const root=dirname(fileURLToPath(import.meta.url));
@@ -298,6 +301,20 @@ function reply(res,status,data){res.writeHead(status,{'Content-Type':'applicatio
 function emailPublic(){const k=state.integrations||{};return {user:k.gmailUser||'',configured:!!(k.gmailUser&&k.gmailPass),senderName:k.senderName||'',senderTitle:k.senderTitle||'',senderPhone:k.senderPhone||'',senderSite:k.senderSite||'',alertEmail:k.alertEmail||'',digestEnabled:k.digestEnabled!==false,digestHour:k.digestHour??5,lastDigestAt:state.lastDigestAt||null,dailyLimit:k.dailyLimit||20,sentToday:emailsSentToday()}}
 function emailsSentToday(){const day=new Date().toLocaleDateString('pt-BR',{timeZone:'America/Bahia'});return (state.emailLog||[]).filter(e=>new Date(e.at).toLocaleDateString('pt-BR',{timeZone:'America/Bahia'})===day).length}
 function senderInfo(){const k=state.integrations||{};const p=state.profile||{};const nameParts=String(p.name||'').split(/\s+/).filter(w=>w.length>2&&!/^(de|da|do|dos|das)$/i.test(w));return {name:k.senderName||(nameParts.length?`${nameParts[0]} ${nameParts.at(-1)}`:'Daniel'),title:k.senderTitle||'',phone:k.senderPhone||p.phone||'',site:k.senderSite||p.portfolio||''}}
+// Atualiza os rascunhos existentes uma vez, sem tocar em conversas já iniciadas.
+if(state.clientDraftVersion!==2){
+  for(const l of Object.values(state.leads||{})){
+    const c=state.campaigns.find(c=>c.id===l.campaignId);
+    if(c&&l.status==='new'&&!l.contactedAt){l.messages=composeMessages(l,c,senderInfo());delete l.messagesEditedAt;}
+  }
+  state.clientDraftVersion=2;await persistState();
+}
+if(state.clientEmailSignatureVersion!==1){
+  for(const l of Object.values(state.leads||{}))if(l.status==='new'&&l.messages?.emailBody){
+    l.messages.emailBody=l.messages.emailBody.split('\n').filter(line=>!/^\s*WhatsApp\s*:/i.test(line)).join('\n');
+  }
+  state.clientEmailSignatureVersion=1;await persistState();
+}
 function jobCatalogForSignals(){const cat=(state.latest?.catalog||[]).map(c=>({title:c.title,company:c.company,source:c.source,url:c.url}));for(const j of state.latest?.jobs||[])cat.push({title:j.title,company:j.company,source:j.source,url:j.sourceUrl});return cat}
 // Empresas de campanhas excluídas: some quem ainda não foi contatado; quem já teve conversa fica no histórico.
 function dropOrphanLeads(){const ids=new Set(state.campaigns.map(c=>c.id));let n=0;for(const [k,l] of Object.entries(state.leads||{}))if(!ids.has(l.campaignId)&&l.status==='new'){delete state.leads[k];n++}return n}
@@ -317,6 +334,7 @@ function cleanCampaign(d,prev={}){
   for(const f of ['radiusKm','pagesPerNiche'])if(d[f]!==undefined)c[f]=Number(d[f])||undefined;
   if(Array.isArray(d.signals))c.signals=d.signals.map(String).slice(0,10);
   if(Array.isArray(d.sizes))c.sizes=d.sizes.map(String).slice(0,5);
+  c.autoSearch=d.autoSearch!==undefined?d.autoSearch!==false:prev.autoSearch!==false;
   c.updatedAt=new Date().toISOString();c.createdAt=prev.createdAt||c.updatedAt;
   return c;
 }
@@ -370,10 +388,14 @@ async function leadsApi(req,res,url){
       const d=await bodyJson(req);
       const subject=String(d.subject||l.messages?.emailSubject||'').slice(0,200),text=String(d.body||l.messages?.emailBody||'').slice(0,8000);
       if(!subject||!text)return reply(res,400,{error:'Assunto e mensagem são obrigatórios.'});
+      if(l.emailSentAt&&!d.force)return reply(res,409,{error:`Esta empresa já recebeu e-mail em ${new Date(l.emailSentAt).toLocaleDateString('pt-BR')}.`});
+      const to=String(l.email).toLowerCase();
+      if(!d.force&&state.emailLog.some(e=>String(e.to).toLowerCase()===to&&e.leadId!==l.id))return reply(res,409,{error:`O endereço ${l.email} já recebeu e-mail por outra empresa cadastrada.`});
+      const finalText=/n[aã]o receber/i.test(text)?text:`${text}\n\n${OPT_OUT}`;
       try{
-        await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:senderInfo().name,to:l.email,subject,text});
+        await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:senderInfo().name,to:l.email,subject,text:finalText,html:prospectEmailHtml(finalText)});
         state.emailLog.push({at:now,to:l.email,leadId:l.id});state.emailLog=state.emailLog.slice(-2000);
-        l.messages={...l.messages,emailSubject:subject,emailBody:text};
+        l.messages={...l.messages,emailSubject:subject,emailBody:finalText};
         l.history=(l.history||[]).concat({at:now,event:`E-mail enviado para ${l.email}`});
         if(l.status==='new'){l.status='contacted';l.contactedAt=now;l.followUpAt=new Date(Date.now()+4*86400000).toISOString()}
         l.emailSentAt=now;l.updatedAt=now;
@@ -387,38 +409,66 @@ async function leadsApi(req,res,url){
 // ---------- Publicações ----------
 function aiPublic(){const c=aiConfig(state.integrations);return {configured:!!c.key,baseUrl:c.baseUrl,model:c.model,fastModel:c.fastModel,defaults:AI_DEFAULTS}}
 function linkedinStatus(){const l=state.linkedin;const c=l.connection;return {configured:!!(l.clientId&&l.clientSecret),connected:!!(c?.token&&Date.parse(c.expiresAt)>Date.now()+300000),name:c?.name||null,expiresAt:c?.expiresAt||null,autoPublish:!!l.autoPublish,redirectUri:`${publicUrl}${LINKEDIN_CALLBACK}`}}
-function postsPublic(){const P=state.posts;return {items:P.items,voice:{...DEFAULT_VOICE,...P.voice},interview:P.interview,stories:P.stories,diary:P.diary.slice(-12),lastPlanAt:P.lastPlanAt||null,questions:{interview:INTERVIEW,checkin:CHECKIN},pillars:PILLARS,dayNames:DAY_NAMES,ai:aiPublic(),pexels:!!state.integrations?.pexelsKey,photoProvider:state.integrations?.pexelsKey?photoProvider(state.integrations.pexelsKey):null,email:emailPublic(),linkedin:linkedinStatus(),signals:marketSignals(state)}}
+function postsPublic(){const P=state.posts;return {items:P.items,voice:{...DEFAULT_VOICE,...P.voice},interview:P.interview,stories:P.stories,diary:P.diary.slice(-12),lastPlanAt:P.lastPlanAt||null,questions:{interview:INTERVIEW,checkin:CHECKIN},pillars:PILLARS,dayNames:DAY_NAMES,ai:aiPublic(),pexels:!!state.integrations?.pexelsKey,photoProvider:state.integrations?.pexelsKey?photoProvider(state.integrations.pexelsKey):null,email:emailPublic(),telegram:{configured:!!state.telegram?.token,chatId:state.telegram?.chatId||'',autoPublish:!!state.telegram?.autoPublish},linkedin:linkedinStatus(),signals:marketSignals(state)}}
 const publishingPosts=new Set();
 function imagePath(post){return join(dataDir,'post-images',`${createHash('sha256').update(post.id).digest('hex')}.bin`)}
 async function bodyBytes(req,max=10*1024*1024){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>max)throw Error('Imagem maior que 10 MB.');chunks.push(chunk)}return Buffer.concat(chunks)}
 function imageMime(bytes){if(bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return 'image/png';if(bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'image/jpeg';throw Error('Use uma imagem PNG ou JPEG.')}
-async function imageForPost(post){
+// Fotos do Pixabay vêm com link temporário (cerca de 24 h). Por isso o Radar baixa e guarda a foto
+// assim que ela é escolhida, e a publicação usa sempre a cópia guardada.
+const allowedPhotoHosts=new Set(['images.pexels.com','cdn.pixabay.com','pixabay.com']);
+async function downloadPhoto(urlText){
+  const source=new URL(urlText);
+  if(source.protocol!=='https:'||!allowedPhotoHosts.has(source.hostname))throw Error('Escolha uma foto do Pixabay ou Pexels na tela do post.');
+  const response=await fetch(source,{signal:AbortSignal.timeout(20000)});
+  if(!response.ok||!allowedPhotoHosts.has(response.url?new URL(response.url).hostname:source.hostname))throw Error('Não consegui baixar a foto escolhida (o link pode ter expirado). Escolha a foto de novo.');
+  if(Number(response.headers.get('content-length'))>10*1024*1024)throw Error('A foto escolhida é maior que 10 MB.');
+  const bytes=Buffer.from(await response.arrayBuffer());if(bytes.length>10*1024*1024)throw Error('A foto escolhida é maior que 10 MB.');
+  return bytes;
+}
+async function cachePhoto(post){
   const img=post.image||{};
-  if(img.uploadedKind===img.kind&&img.uploadedAt){const bytes=await readFile(imagePath(post));return {bytes,mime:imageMime(bytes),alt:img.cardTitle||post.hook||'Imagem do post'}}
+  if(img.kind!=='photo'||!img.chosen?.large||(img.uploadedKind==='photo'&&img.uploadedAt&&(!img.uploadedFrom||img.uploadedFrom===img.chosen.large)))return false;
+  const bytes=await downloadPhoto(img.chosen.large);const mime=imageMime(bytes);
+  await mkdir(join(dataDir,'post-images'),{recursive:true,mode:0o700});await writeFile(imagePath(post),bytes,{mode:0o600});
+  Object.assign(img,{uploadedKind:'photo',uploadedAt:new Date().toISOString(),uploadedMime:mime,uploadedFrom:img.chosen.large});post.image=img;return true;
+}
+async function cachePendingPhotos(){
+  let n=0;for(const post of (state.posts?.items||[]).filter(x=>['draft','approved'].includes(x.status)&&x.image?.kind==='photo')){try{if(await cachePhoto(post))n++}catch(e){if(post.image)post.image.cacheError=String(e.message).slice(0,200)}}
+  if(n)await persistState();return n;
+}
+async function imageForPost(post){
+  const imported=post.importedMedia?.find(m=>m.mime!=='video/mp4');if(imported)return {bytes:await readFile(join(dataDir,'post-images',imported.file)),mime:imported.mime,alt:post.hook};
+  const img=post.image||{};
+  if(img.uploadedKind===img.kind&&img.uploadedAt&&(img.kind!=='photo'||!img.uploadedFrom||img.uploadedFrom===img.chosen?.large)){const bytes=await readFile(imagePath(post));return {bytes,mime:imageMime(bytes),alt:img.cardTitle||post.hook||'Imagem do post'}}
   if(img.kind==='photo'&&img.chosen?.large){
-    const source=new URL(img.chosen.large);
-    const allowed=new Set(['images.pexels.com','cdn.pixabay.com','pixabay.com']);
-    if(source.protocol!=='https:'||!allowed.has(source.hostname))throw Error('Escolha uma foto do Pixabay ou Pexels na tela do post.');
-    const response=await fetch(source,{signal:AbortSignal.timeout(20000)});
-    if(!response.ok||!allowed.has(new URL(response.url).hostname))throw Error('Não consegui baixar a foto escolhida. Escolha outra imagem.');
-    if(Number(response.headers.get('content-length'))>10*1024*1024)throw Error('A foto escolhida é maior que 10 MB.');
-    const bytes=Buffer.from(await response.arrayBuffer());if(bytes.length>10*1024*1024)throw Error('A foto escolhida é maior que 10 MB.');
+    const bytes=await downloadPhoto(img.chosen.large);
     return {bytes,mime:imageMime(bytes),alt:img.chosen.alt||post.hook||'Foto do post'};
   }
   throw Error(img.kind==='card'?'Salve o card antes de publicar automaticamente.':'Escolha ou envie a imagem deste post antes da publicação automática.');
 }
 async function publishApprovedPost(post,{retry=false}={}){
+ if(post.channel==='telegram'){
+  if(post.status!=='approved'||!post.humanApprovedAt)throw Error('Aprove pessoalmente este post antes de publicar.');if(post.publishedAt||post.telegramAttemptedAt&&!retry)throw Error('Já houve uma tentativa. Confira o Telegram antes de repetir.');if(publishingPosts.has(post.id))throw Error('Este post já está sendo enviado.');
+  const t=state.telegram;if(!t?.token||!t.chatId)throw Error('Configure o Telegram em Importar publicações.');
+  const media=await Promise.all((post.importedMedia||[]).map(async m=>({bytes:await readFile(join(dataDir,'post-images',m.file)),mime:m.mime})));publishingPosts.add(post.id);
+  try{post.telegramAttemptedAt=new Date().toISOString();await persistState();const result=await publishTelegram({token:openToken(t.token,dataDir),chatId:t.chatId,text:post.text,media,onSent:async ids=>{post.telegramMessageIds=[...ids];await persistState()}});post.status='published';post.publishedAt=new Date().toISOString();post.history.push({at:post.publishedAt,event:'Publicado no Telegram'});post.telegramError=null;await persistState();return result;}catch(e){post.telegramError=e.message;await persistState();throw e}finally{publishingPosts.delete(post.id)}
+ }
+
   if(post.status!=='approved')throw Error('Aprove o post antes de publicar.');
   if(!post.humanApprovedAt)throw Error('Confirme pessoalmente este post no Radar antes de publicá-lo no LinkedIn.');
   if(post.linkedinUrn)throw Error('Este post já foi enviado ao LinkedIn.');
   if(post.linkedinAttemptedAt&&!retry)throw Error('Já houve uma tentativa de publicação. Verifique seu perfil antes de tentar novamente.');
   if(publishingPosts.has(post.id))throw Error('Este post já está sendo enviado.');
   const l=state.linkedin;if(!linkedinStatus().connected)throw Error('Conecte o LinkedIn novamente em Meu perfil.');
-  const image=await imageForPost(post);
+  const videoMedia=post.importedMedia?.find(m=>m.mime==='video/mp4');
+  const video=videoMedia?{bytes:await readFile(join(dataDir,'post-images',videoMedia.file)),mime:'video/mp4',alt:post.hook}:null;
+  const image=video?null:await imageForPost(post);
+  const images=post.importedMedia?.length>1?await Promise.all(post.importedMedia.map(async m=>({bytes:await readFile(join(dataDir,'post-images',m.file)),mime:m.mime,alt:post.hook}))):null;
   publishingPosts.add(post.id);
   try{
     post.linkedinAttemptedAt=new Date().toISOString();post.linkedinError=null;await persistState();
-    const result=await publishMemberPost({token:openToken(l.connection.token,dataDir),sub:l.connection.sub,text:post.text,image});
+    const result=await publishMemberPost({token:openToken(l.connection.token,dataDir),sub:l.connection.sub,text:post.text,image,images,video});
     post.linkedinUrn=result.urn;post.linkedinUrl=result.url;post.status='published';post.publishedAt=new Date().toISOString();post.updatedAt=post.publishedAt;
     post.history=(post.history||[]).concat({at:post.publishedAt,event:'Publicado no LinkedIn'});await persistState();return result;
   }catch(e){post.linkedinError=String(e.message||e).slice(0,300);post.history=(post.history||[]).concat({at:new Date().toISOString(),event:`Publicação não confirmada: ${post.linkedinError}`});await persistState();throw e}
@@ -469,7 +519,47 @@ function cleanVoice(d){
   return v;
 }
 let planning=false,planningJob=null;
+const importBatches=new Map();
+function importFilePath(batch,path){return join(dataDir,'post-imports',batch,importHash(path)+'.bin')}
+async function importApi(req,res,url){
+ const parts=url.pathname.split('/').filter(Boolean);if(parts[2]!=='import')return false;
+ try{
+ if(parts.length===3&&req.method==='POST'){
+  for(const [id,b] of importBatches)if(Date.now()-b.at>3600000)importBatches.delete(id);
+  if(importBatches.size>=8)throw Error('Há muitos pacotes em revisão. Aguarde ou conclua uma importação.');
+  let files;if(req.headers['content-type']==='application/zip'){files=unzipPosts(await bodyBytes(req,50*1024*1024))}else{const d=await bodyJson(req);files=(d.files||[]).map(f=>({path:safeImportPath(f.path),text:typeof f.text==='string'?f.text:undefined}));}
+  const items=describeImport(files),id=randomBytes(16).toString('hex');await mkdir(join(dataDir,'post-imports',id),{recursive:true,mode:0o700});const uploaded=new Set();
+  for(const f of files)if(f.data&&/\.(png|jpe?g|mp4)$/i.test(f.path)){await writeFile(importFilePath(id,f.path),f.data,{mode:0o600});uploaded.add(f.path)}
+  const voice={...DEFAULT_VOICE,...state.posts.voice};const slots=nextSlots(voice,state.posts.items.filter(p=>['draft','approved'].includes(p.status)).map(p=>p.scheduledFor),items.length);
+  items.forEach((p,i)=>{p.scheduledFor=slots[i];p.duplicate=state.posts.items.some(x=>x.importHash===p.hash)});
+  importBatches.set(id,{items,files,uploaded,at:Date.now()});return reply(res,200,{batch:id,items,media:files.filter(f=>/\.(png|jpe?g|mp4)$/i.test(f.path)).map(f=>f.path)});
+ }
+ const b=importBatches.get(parts[3]);if(!b)throw Error('A prévia expirou. Selecione novamente o pacote.');
+ if(parts[4]==='file'&&req.method==='PUT'){
+  const path=safeImportPath(url.searchParams.get('path'));if(!b.files.some(f=>f.path===path)||! /\.(png|jpe?g|mp4)$/i.test(path))throw Error('Mídia não pertence a este pacote.');
+  const bytes=await bodyBytes(req,50*1024*1024);if(/\.mp4$/i.test(path)){if(bytes.subarray(4,8).toString()!=='ftyp')throw Error('Vídeo MP4 inválido.')}else imageMime(bytes);
+  await writeFile(importFilePath(parts[3],path),bytes,{mode:0o600});b.uploaded.add(path);return reply(res,200,{ok:true});
+ }
+ if(parts[4]==='commit'&&req.method==='POST'){
+  const d=await bodyJson(req);if(!Array.isArray(d.items)||!d.items.length)throw Error('Selecione pelo menos um post.');const chosen=[];const selectedHashes=new Set();
+  for(const item of d.items){if(selectedHashes.has(item.hash))throw Error("Post repetido no lote.");selectedHashes.add(item.hash);const p=b.items.find(x=>x.hash===item.hash);if(!p)throw Error('Post inválido.');if(state.posts.items.some(x=>x.importHash===p.hash))throw Error('Este pacote já contém um post importado.');if(!Number.isFinite(Date.parse(item.scheduledFor))||Date.parse(item.scheduledFor)<=Date.now())throw Error('Escolha datas futuras para os posts.');const media=Array.isArray(item.media)?item.media:p.media;if(media.length>9)throw Error("Selecione até 9 mídias por post.");if(media.some(p=>/\.mp4$/i.test(p))&&media.length>1&&item.channel!=="telegram")throw Error("No LinkedIn, não misture vídeo com imagens.");for(const path of media)if(!b.uploaded.has(path))throw Error('Envie todas as mídias selecionadas antes de importar.');for(const path of media){const bytes=await readFile(importFilePath(parts[3],path));if(/\.mp4$/i.test(path)){if(bytes.subarray(4,8).toString()!=='ftyp')throw Error('Vídeo MP4 inválido.')}else{imageMime(bytes);if(bytes.length>10*1024*1024)throw Error('Cada imagem deve ter até 10 MB.')}}chosen.push({p,item,media});}
+  const imported=[];for(const {p,item,media} of chosen){
+   const now=new Date().toISOString(),id='post-'+randomBytes(8).toString('hex');const post={id,status:'draft',pillar:'prova',language:'pt',text:p.text,hook:p.hook,scheduledFor:new Date(item.scheduledFor).toISOString(),createdAt:now,importHash:p.hash,importSource:p.source,importedMedia:[],image:{kind:'print'},history:[{at:now,event:'Importado sem reescrever o texto'}]};
+   await mkdir(join(dataDir,'post-images'),{recursive:true,mode:0o700});
+   for(let i=0;i<media.length;i++){const bytes=await readFile(importFilePath(parts[3],media[i]));const video=/\.mp4$/i.test(media[i]);const mime=video?'video/mp4':imageMime(bytes);const stored=importHash(id+'-'+i)+'.bin';await writeFile(join(dataDir,'post-images',stored),bytes,{mode:0o600});post.importedMedia.push({name:media[i],file:stored,mime});if(i===0&&!video){await writeFile(imagePath(post),bytes,{mode:0o600});Object.assign(post.image,{uploadedKind:'print',uploadedAt:now,uploadedMime:mime})}}
+   post.channel=item.channel==='telegram'?'telegram':'linkedin';
+   post.importWarning=post.channel==='telegram'?null:media.some(p=>/\.mp4$/i.test(p))?null:!media.length?'Selecione uma imagem antes de aprovar.':null;
+   imported.push(post);
+  }state.posts.items.push(...imported);await persistState();importBatches.delete(parts[3]);return reply(res,200,{items:imported});
+ }
+ return reply(res,405,{error:'Ação de importação inválida.'});
+ }catch(e){return reply(res,400,{error:e.message})}
+}
 async function postsApi(req,res,url){
+  if(url.pathname==='/api/posts/telegram'&&req.method==='POST'){
+   try{const d=await bodyJson(req);const t=state.telegram||{};const token=d.token?String(d.token).trim():t.token?openToken(t.token,dataDir):'';const chatId=String(d.chatId||t.chatId||'').trim();if(!/^(@[A-Za-z0-9_]{5,}|-?\d+)$/.test(chatId))throw Error('Informe @nome_do_canal ou o ID numérico do grupo.');const me=await telegramCall(token,'getMe',{});const chat=await telegramCall(token,'getChat',{chat_id:chatId});state.telegram={token:sealToken(token,dataDir),chatId,autoPublish:!!d.autoPublish,name:me.username};await persistState();return reply(res,200,{configured:true,chatId,autoPublish:!!d.autoPublish,name:me.username,title:chat.title});}catch(e){return reply(res,400,{error:e.message})}
+  }
+  if(url.pathname.startsWith('/api/posts/import'))return importApi(req,res,url);
   const P=state.posts;const parts=url.pathname.split('/').filter(Boolean);
   const cfg=aiConfig(state.integrations);
   if(url.pathname==='/api/ai/test'&&req.method==='POST'){
@@ -531,6 +621,7 @@ async function postsApi(req,res,url){
   const post=P.items.find(x=>x.id===parts[2]);
   if(!post)return reply(res,404,{error:'Post não encontrado'});
   const now=new Date().toISOString();
+  if(parts[3]==='media'&&req.method==='GET'){const media=post.importedMedia?.[Number(parts[4])];if(!media)return reply(res,404,{error:'Mídia não encontrada'});const bytes=await readFile(join(dataDir,'post-images',media.file));res.writeHead(200,{'Content-Type':media.mime,'Cache-Control':'private, no-store'});res.end(bytes);return true;}
   if(parts[3]==='image'&&req.method==='POST'){
     try{const bytes=await bodyBytes(req);const mime=imageMime(bytes);await mkdir(join(dataDir,'post-images'),{recursive:true,mode:0o700});await writeFile(imagePath(post),bytes,{mode:0o600});post.image||={};post.image.uploadedKind=post.image.kind;post.image.uploadedAt=now;post.image.uploadedMime=mime;if(post.status==='approved'){post.status='draft';post.humanApprovedAt=null}await persistState();return reply(res,200,{post})}
     catch(e){return reply(res,400,{error:e.message})}
@@ -549,7 +640,10 @@ async function postsApi(req,res,url){
     if(d.status==='approved'&&!post.humanApprovedAt){post.humanApprovedAt=now;post.history=(post.history||[]).concat({at:now,event:'Aprovação manual confirmada'})}
     if(d.scheduledFor&&!Number.isNaN(Date.parse(d.scheduledFor))){post.scheduledFor=new Date(d.scheduledFor).toISOString();post.remindedAt=null}
     if(d.image&&typeof d.image==='object'){const img=post.image||(post.image={});if(d.image.kind!==undefined||d.image.cardTitle!==undefined||d.image.cardLines!==undefined||d.image.chosen!==undefined||d.image.style!==undefined){img.uploadedAt=null;img.uploadedKind=null}for(const f of ['kind','printIdea','cardTitle','photoQuery'])if(typeof d.image[f]==='string')img[f]=d.image[f].slice(0,300);if(['contrast','editorial','minimal'].includes(d.image.style))img.style=d.image.style;if(Array.isArray(d.image.cardLines))img.cardLines=d.image.cardLines.map(x=>String(x).slice(0,80)).slice(0,3);if(d.image.chosen===null||typeof d.image.chosen==='object'){img.chosen=d.image.chosen?{id:d.image.chosen.id,large:String(d.image.chosen.large||''),thumb:String(d.image.chosen.thumb||''),author:String(d.image.chosen.author||''),page:String(d.image.chosen.page||''),provider:String(d.image.chosen.provider||'')}:null;img.autoSelected=false}}
-    post.updatedAt=now;await persistState();return reply(res,200,{post});
+    post.updatedAt=now;
+    // Guarda a foto escolhida (ou a de um post aprovado que ainda não foi guardada) antes que o link expire.
+    if(post.image?.kind==='photo'&&(d.image?.chosen||d.status==='approved')){if(d.image?.chosen&&post.image.uploadedKind==='photo')post.image.uploadedAt=null;try{await cachePhoto(post);if(post.image)post.image.cacheError=null}catch(e){if(post.image)post.image.cacheError=String(e.message).slice(0,200)}}
+    await persistState();return reply(res,200,{post});
   }
   if(parts[3]==='rewrite'&&req.method==='POST'){
     const d=await bodyJson(req);const voice={...DEFAULT_VOICE,...P.voice};
@@ -582,24 +676,17 @@ function buildDigest(){
   const name=String(state.profile?.name||'').split(/\s+/)[0]||'';
   const regionLabel={brasil:'remoto no Brasil',exterior:'fora do Brasil',local:'na sua cidade'};
   const period=Number(latest.maxAgeDays)===1?'últimas 24 horas':latest.maxAgeDays?`últimos ${latest.maxAgeDays} dias`:'todas as abertas';
-  const lines=[`Bom dia${name?`, ${name}`:''}! Aqui está o que o Radar preparou para hoje.`,'',
-    `VAGAS (${period}) — ${jobs.length} para você olhar${fresh.length?`, ${fresh.length} novas desde ontem`:''}`,
-    `Remoto no Brasil: ${by('brasil')} · Fora do Brasil: ${by('exterior')} · Na sua cidade: ${by('local')}`];
-  if(top.length){lines.push('','Destaques:');for(const j of top)lines.push(`• ${j.titlePt||j.title} — ${j.company} (${regionLabel[j.region]||j.location})${j.fit==='boa'?' · boa correspondência':''}${j.isNew?' · nova':''}`,`  ${j.sourceUrl}`)}
-  else lines.push('Nenhuma vaga nova dentro dos seus filtros hoje.');
-  lines.push('',`PUBLICAÇÕES — ${drafts.length} ${drafts.length===1?'post esperando':'posts esperando'} sua aprovação.`);
-  for(const x of todayPosts)lines.push(`• Hoje às ${new Date(x.scheduledFor).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Bahia'})}: ${x.hook||x.text.split('\n')[0]}${x.status==='draft'?' (ainda não aprovado)':''}`);
-  lines.push('',`CLIENTES — ${newLeads.length} ${newLeads.length===1?'empresa':'empresas'} para contatar${follow.length?` e ${follow.length} ${follow.length===1?'retorno':'retornos'} para hoje`:''}.`);
-  lines.push('',`Abrir o Radar: ${url}`,'','— Radar');
-  const subject=`Radar · ${new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',timeZone:'America/Bahia'})}: ${jobs.length} ${jobs.length===1?'vaga':'vagas'}, ${drafts.length} ${drafts.length===1?'post':'posts'}, ${newLeads.length} ${newLeads.length===1?'cliente':'clientes'}`;
-  return {subject,text:lines.join('\n'),counts:{jobs:jobs.length,fresh:fresh.length,brasil:by('brasil'),exterior:by('exterior'),local:by('local'),drafts:drafts.length,leads:newLeads.length,followUps:follow.length}};
+  const counts={jobs:jobs.length,fresh:fresh.length,brasil:by('brasil'),exterior:by('exterior'),local:by('local'),drafts:drafts.length,leads:newLeads.length,followUps:follow.length};
+  const date=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',timeZone:'America/Bahia'});
+  const content=digestEmail({name,date,period,counts,top,todayPosts:todayPosts.map(x=>({time:new Date(x.scheduledFor).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Bahia'}),title:x.hook||x.text.split('\n')[0],draft:x.status==='draft'}))});
+  return {subject:`Radar · Seu resumo de oportunidades — ${date}`,...content,counts};
 }
 async function sendDigest({force=false}={}){
   const k=state.integrations||{};
   if(!k.gmailUser||!k.gmailPass)throw Error('Configure o Gmail em Meu perfil › E-mail para prospecção.');
   if(!force&&k.digestEnabled===false)return {skipped:'desligado'};
   const d=buildDigest();
-  await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:'Radar',to:k.alertEmail||k.gmailUser,subject:d.subject,text:d.text});
+  await sendMail({user:k.gmailUser,pass:k.gmailPass,from:k.gmailUser,fromName:'Radar',to:k.alertEmail||k.gmailUser,subject:d.subject,text:d.text,html:d.html});
   state.lastDigestAt=new Date().toISOString();if(!force)state.lastDigestDay=bahiaDay();await persistState();
   return {ok:true,to:k.alertEmail||k.gmailUser,counts:d.counts};
 }
@@ -615,6 +702,21 @@ async function digestTick(){
     const r=await sendDigest();console.log(`Resumo diário enviado para ${r.to}`);
   }catch(e){console.error('Resumo diário falhou:',e.message)}finally{digestBusy=false}
 }
+let clientsBusy=false;
+async function clientsTick(){
+  if(clientsBusy||!state.integrations?.serpapiKey)return;
+  clientsBusy=true;
+  try{
+    for(const c of state.campaigns){
+      if(c.autoSearch===false||c.lastAutoSearchDay===bahiaDay())continue;
+      // A tentativa fica registrada antes da consulta para evitar repetição e consumo de cota.
+      c.lastAutoSearchDay=bahiaDay();await persistState();
+      try{await searchCampaign(c,{http:httpTools,keys:state.integrations,state,jobCatalog:jobCatalogForSignals(),sender:senderInfo()});}
+      catch(e){c.lastStats={errors:[e.message]};}
+      await persistState();
+    }
+  }finally{clientsBusy=false;}
+}
 // Automação: planeja a semana sozinho e manda lembrete por e-mail na hora de cada post.
 async function postsTick(){
   const P=state.posts;const voice={...DEFAULT_VOICE,...P.voice};const cfg=aiConfig(state.integrations);const k=state.integrations||{};
@@ -628,8 +730,9 @@ async function postsTick(){
         }finally{planning=false}
       }
     }
+    if(state.telegram?.autoPublish&&state.telegram?.token){for(const post of P.items.filter(x=>x.channel==='telegram'&&x.status==='approved'&&x.humanApprovedAt&&!x.telegramAttemptedAt&&Date.parse(x.scheduledFor)<=Date.now()&&Date.now()-Date.parse(x.scheduledFor)<36*3600000)){try{await publishApprovedPost(post)}catch(e){console.error('Publicação Telegram: '+e.message)}}}
     if(state.linkedin.autoPublish&&linkedinStatus().connected){
-      for(const post of P.items.filter(x=>x.status==='approved'&&x.humanApprovedAt&&!x.linkedinAttemptedAt&&Date.parse(x.scheduledFor)<=Date.now()&&Date.now()-Date.parse(x.scheduledFor)<36*3600000)){
+      for(const post of P.items.filter(x=>x.channel!=='telegram'&&x.status==='approved'&&x.humanApprovedAt&&!x.linkedinAttemptedAt&&Date.parse(x.scheduledFor)<=Date.now()&&Date.now()-Date.parse(x.scheduledFor)<36*3600000)){
         try{await publishApprovedPost(post);console.log(`Publicação LinkedIn concluída: ${post.id}`)}
         catch(e){if(post.linkedinError!==e.message){post.linkedinError=String(e.message).slice(0,300);await persistState()}console.error(`Publicação LinkedIn ${post.id}: ${e.message}`)}
       }
@@ -787,7 +890,7 @@ async function passwordCli(){
   process.exit(r.status===200?0:1);
 }
 if(process.argv.includes('--definir-senha'))await passwordCli();
-if(process.argv[1]===fileURLToPath(import.meta.url)){server.on('error',error=>{if(error.code==='EADDRINUSE'){console.error(`\nA porta ${port} já está em uso: outra janela do Radar (versão antiga) ainda está aberta.\nFeche essa janela ou use iniciar-radar.bat, que fecha a versão antiga automaticamente.\n`);process.exit(1)}throw error});server.listen(port,host,()=>{console.log(`RadarDaniel em http://${host}:${port}`);if(!auth.hasUser())console.log('Primeiro acesso: abra http://localhost:'+port+' neste computador para criar seu usuário e senha.');scheduleDaily();setInterval(postsTick,60000).unref();setInterval(digestTick,5*60000).unref();setTimeout(digestTick,60000).unref();setTimeout(postsTick,30000).unref();
+if(process.argv[1]===fileURLToPath(import.meta.url)){server.on('error',error=>{if(error.code==='EADDRINUSE'){console.error(`\nA porta ${port} já está em uso: outra janela do Radar (versão antiga) ainda está aberta.\nFeche essa janela ou use iniciar-radar.bat, que fecha a versão antiga automaticamente.\n`);process.exit(1)}throw error});server.listen(port,host,()=>{console.log(`RadarDaniel em http://${host}:${port}`);if(!auth.hasUser())console.log('Primeiro acesso: abra http://localhost:'+port+' neste computador para criar seu usuário e senha.');scheduleDaily();setInterval(()=>clientsTick().catch(e=>console.error("Busca de clientes:",e.message)),60000).unref();setTimeout(()=>clientsTick().catch(e=>console.error("Busca de clientes:",e.message)),45000).unref();setInterval(postsTick,60000).unref();setInterval(digestTick,5*60000).unref();setInterval(()=>cachePendingPhotos().catch(()=>{}),15*60000).unref();setTimeout(()=>cachePendingPhotos().then(n=>{if(n)console.log(`Fotos guardadas: ${n}`)}).catch(()=>{}),5000).unref();setTimeout(digestTick,60000).unref();setTimeout(postsTick,30000).unref();
   // Se o computador estava desligado na hora da busca diária, recupera ao ligar o servidor.
   const last=Date.parse(state.latest?.searchedAt||0);
   if(state.settings&&(!Number.isFinite(last)||Date.now()-last>20*3600000)){console.log('Última busca tem mais de 20 horas; buscando agora.');dailyRun()}
